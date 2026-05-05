@@ -1,26 +1,43 @@
-# Terraform Provider: Camunda Orchestration Cluster
+# Terraform Provider: Camunda Cluster
 
 This provider manages the configuration of existing [Camunda](https://camunda.com) orchestration cluster instances. It does not provision or destroy clusters — it configures them.
 
 ## How it works
 
-An orchestration cluster is represented as a `data` source. All resources (users, groups, roles, tenants, etc.) are scoped to a cluster data object, so a single Terraform state can manage configuration across multiple orchestration clusters simultaneously.
+The cluster connection is configured directly in the `provider` block. All resources are scoped to the provider, so a single Terraform workspace configures one cluster. Use [provider aliases](https://developer.hashicorp.com/terraform/language/providers/configuration#alias-multiple-provider-configurations) to manage multiple clusters from one state.
 
 ```hcl
-data "orchestration-cluster_cluster" "production" {
+provider "camunda_cluster" {
   url           = "https://cluster.example.com"
   client_id     = var.client_id
   client_secret = var.client_secret
 }
 
-data "orchestration-cluster_cluster" "staging" {
+resource "camunda_cluster_user" "alice" {
+  username = "alice"
+  email    = "alice@example.com"
+}
+```
+
+### Multiple clusters
+
+```hcl
+provider "camunda_cluster" {
+  alias         = "production"
+  url           = "https://cluster.example.com"
+  client_id     = var.client_id
+  client_secret = var.client_secret
+}
+
+provider "camunda_cluster" {
+  alias         = "staging"
   url           = "https://staging.cluster.example.com"
   client_id     = var.staging_client_id
   client_secret = var.staging_client_secret
 }
 
-resource "orchestration-cluster_user" "alice" {
-  cluster  = data.orchestration-cluster_cluster.production.id
+resource "camunda_cluster_user" "alice" {
+  provider = camunda_cluster.production
   username = "alice"
   email    = "alice@example.com"
 }
@@ -30,20 +47,14 @@ resource "orchestration-cluster_user" "alice" {
 
 | Resource | Description |
 |---|---|
-| `orchestration-cluster_user` | Identity user |
-| `orchestration-cluster_group` | Identity group |
-| `orchestration-cluster_role` | Identity role |
-| `orchestration-cluster_authorization` | Authorization assignment |
-| `orchestration-cluster_client` | OAuth client |
-| `orchestration-cluster_mapping_rule` | Identity mapping rule |
-| `orchestration-cluster_tenant` | Tenant |
-| `orchestration-cluster_cluster_variable` | Cluster variable |
-
-## Data Sources
-
-| Data Source | Description |
-|---|---|
-| `orchestration-cluster_cluster` | Existing orchestration cluster connection |
+| `camunda_cluster_user` | Identity user |
+| `camunda_cluster_group` | Identity group |
+| `camunda_cluster_role` | Identity role |
+| `camunda_cluster_authorization` | Authorization assignment |
+| `camunda_cluster_client` | OAuth client |
+| `camunda_cluster_mapping_rule` | Identity mapping rule |
+| `camunda_cluster_tenant` | Tenant |
+| `camunda_cluster_cluster_variable` | Cluster variable |
 
 ## Requirements
 
