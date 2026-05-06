@@ -4,7 +4,7 @@ This provider manages the configuration of existing [Camunda](https://camunda.co
 
 ## How it works
 
-An orchestration cluster is represented as a `data` source. All resources (users, groups, roles, tenants, etc.) are scoped to a cluster data object, so a single Terraform state can manage configuration across multiple orchestration clusters simultaneously.
+An orchestration cluster is represented as an instance of the provider. All resources (users, groups, roles, tenants, etc.) are scoped to that cluster. To manage multiple clusters, instanciate multiple instance of the provider and [use provider aliases](https://developer.hashicorp.com/terraform/language/block/provider#alias):
 
 ```hcl
 provider "orchestration-cluster" {
