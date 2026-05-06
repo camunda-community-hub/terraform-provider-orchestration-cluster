@@ -39,8 +39,8 @@ type CamundaClusterProvider struct {
 type CamundaClusterProviderModel struct {
 	ClientID     types.String `tfsdk:"client_id"`
 	ClientSecret types.String `tfsdk:"client_secret"`
-	LoginURL	 types.String `tfsdk:"login_url"`
-	Audience	 types.String `tfsdk:"audience"`
+	LoginURL     types.String `tfsdk:"login_url"`
+	Audience     types.String `tfsdk:"audience"`
 	URL          types.String `tfsdk:"url"`
 }
 
