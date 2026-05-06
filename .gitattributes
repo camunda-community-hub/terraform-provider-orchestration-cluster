@@ -1,0 +1,2 @@
+spec/*/bundled-api.yaml linguist-generated=true
+pkg/camunda/*/*.gen* linguist-generated=true
