@@ -7,20 +7,28 @@ This provider manages the configuration of existing [Camunda](https://camunda.co
 An orchestration cluster is represented as a `data` source. All resources (users, groups, roles, tenants, etc.) are scoped to a cluster data object, so a single Terraform state can manage configuration across multiple orchestration clusters simultaneously.
 
 ```hcl
-data "orchestration-cluster_cluster" "production" {
+provider "orchestration-cluster" {
   url           = "https://cluster.example.com"
   client_id     = var.client_id
   client_secret = var.client_secret
 }
 
-data "orchestration-cluster_cluster" "staging" {
+provider "orchestration-cluster_cluster" {
+  alias = "staging"
+
   url           = "https://staging.cluster.example.com"
   client_id     = var.staging_client_id
   client_secret = var.staging_client_secret
 }
 
 resource "orchestration-cluster_user" "alice" {
-  cluster  = data.orchestration-cluster_cluster.production.id
+  username = "alice"
+  email    = "alice@example.com"
+}
+
+resource "orchestration-cluster_user" "alice" {
+  provider = orchestration-cluster.staging
+
   username = "alice"
   email    = "alice@example.com"
 }
