@@ -161,6 +161,7 @@ func getAuthToken(loginUrl, audience, clientID, clientSecret string) (string, er
 func (p *CamundaClusterProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewExampleResource,
+		NewUserResource,
 	}
 }
 
@@ -173,6 +174,8 @@ func (p *CamundaClusterProvider) EphemeralResources(ctx context.Context) []func(
 func (p *CamundaClusterProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewExampleDataSource,
+		NewClusterTopologyDataSource,
+		NewUserDataSource,
 	}
 }
 
