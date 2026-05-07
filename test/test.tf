@@ -15,20 +15,28 @@ variable "audience" {}
 provider "camundacluster" {
   url = var.url
 
-  login_url     = var.login_url
-  audience      = var.audience
-  client_id     = var.client_id
-  client_secret = var.client_secret
+  #basic_auth = {
+  #  username = "admin"
+  #  password = "admin"
+  #}
+
+  oidc = {
+    login_url     = var.login_url
+    audience      = var.audience
+    client_id     = var.client_id
+    client_secret = var.client_secret
+  }
 }
 
 #data "camundacluster_user" "test" {
 #  username = "admin"
 #}
-#resource "camundacluster_user" "test" {
-#  username = "admin"
-#  name     = "Jonathan Ballet"
-#  email    = "jonathan.ballet@camunda.com"
-#}
+resource "camundacluster_user" "test" {
+  username = "xxx"
+  name     = "Jonathan Ballet"
+  email    = "jonathan.ballet@camunda.com"
+  password = "test123"
+}
 
 data "camundacluster_cluster_topology" "this" {}
 

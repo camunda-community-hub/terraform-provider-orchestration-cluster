@@ -63,7 +63,6 @@ jobs:
       matrix:
         # Terraform versions
         terraform:
-          - '1.13.*'
           - '1.14.*'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -71,6 +70,14 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v2
+      - name: Pull test images
+        run: docker compose pull
+        working-directory: ./docker-compose
+      - name: Start test containers
+        run: docker compose up -d
+        working-directory: ./docker-compose
       - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
         with:
           terraform_version: ${{ matrix.terraform }}
@@ -78,6 +85,5 @@ jobs:
       - run: go mod download
       - run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
-        # TODO: reenable when we can do integration testing in the CI
-        #env:
-          #TF_ACC: "1"
+        env:
+          TF_ACC: "1"
