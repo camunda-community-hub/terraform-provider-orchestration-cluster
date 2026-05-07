@@ -65,21 +65,6 @@ resource "camunda_cluster_user" "alice" {
 
 Apache 2.0
 
-## Developing
-
-Add something similar to the following in your `~/.terraformrc` configuration file:
-
-```hclprovider_installation {
-provider_installation {
-  dev_overrides {
-    "scaffolding-framework" = "<your $GOPATH>/bin"
-  }
-
-  direct {}
-}
-```
-
-
 ---
 
 (below is the original README from the https://github.com/hashicorp/terraform-plugin-framework repository
