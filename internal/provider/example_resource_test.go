@@ -20,17 +20,17 @@ func TestAccExampleResource(t *testing.T) {
 				Config: testAccExampleResourceConfig("one"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"scaffolding_example.test",
+						"camundacluster_example.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("example-id"),
 					),
 					statecheck.ExpectKnownValue(
-						"scaffolding_example.test",
+						"camundacluster_example.test",
 						tfjsonpath.New("defaulted"),
 						knownvalue.StringExact("example value when not configured"),
 					),
 					statecheck.ExpectKnownValue(
-						"scaffolding_example.test",
+						"camundacluster_example.test",
 						tfjsonpath.New("configurable_attribute"),
 						knownvalue.StringExact("one"),
 					),
@@ -38,7 +38,7 @@ func TestAccExampleResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "scaffolding_example.test",
+				ResourceName:      "camundacluster_example.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 				// This is not normally necessary, but is here because this
@@ -52,17 +52,17 @@ func TestAccExampleResource(t *testing.T) {
 				Config: testAccExampleResourceConfig("two"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"scaffolding_example.test",
+						"camundacluster_example.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("example-id"),
 					),
 					statecheck.ExpectKnownValue(
-						"scaffolding_example.test",
+						"camundacluster_example.test",
 						tfjsonpath.New("defaulted"),
 						knownvalue.StringExact("example value when not configured"),
 					),
 					statecheck.ExpectKnownValue(
-						"scaffolding_example.test",
+						"camundacluster_example.test",
 						tfjsonpath.New("configurable_attribute"),
 						knownvalue.StringExact("two"),
 					),
@@ -75,7 +75,7 @@ func TestAccExampleResource(t *testing.T) {
 
 func testAccExampleResourceConfig(configurableAttribute string) string {
 	return fmt.Sprintf(`
-resource "scaffolding_example" "test" {
+resource "camundacluster_example" "test" {
   configurable_attribute = %[1]q
 }
 `, configurableAttribute)
