@@ -17,12 +17,12 @@ func TestAccUserResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + testAccUserResourceConfig("one", "Foo Bar"),
+				Config: providerConfig + testAccUserResourceConfig("user1", "Foo Bar"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_user.test",
 						tfjsonpath.New("id"),
-						knownvalue.StringExact("one"),
+						knownvalue.StringExact("user1"),
 					),
 					statecheck.ExpectKnownValue(
 						"camundacluster_user.test",
@@ -42,12 +42,13 @@ func TestAccUserResource(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + testAccUserResourceConfig("two", "Plop Plip"),
+				// Update the test resource with different parameters
+				Config: providerConfig + testAccUserResourceConfig("user2", "Plop Plip"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_user.test",
 						tfjsonpath.New("id"),
-						knownvalue.StringExact("two"),
+						knownvalue.StringExact("user2"),
 					),
 					statecheck.ExpectKnownValue(
 						"camundacluster_user.test",
@@ -66,8 +67,8 @@ func testAccUserResourceConfig(username, name string) string {
 resource "camundacluster_user" "test" {
   username = "%s"
   name     = "%s"
-  email    = "foo.bar@example.com"
-  password = "test123"
+  email    = "%s@example.com"
+  password = "test123-%s"
 }
-`, username, name)
+`, username, name, username, username)
 }
