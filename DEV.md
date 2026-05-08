@@ -37,3 +37,25 @@ make build
    ```
    make install
    ```
+
+
+## Testing the provider
+
+Start unit test with:
+```
+make test
+```
+
+### Acceptance tests
+
+Acceptance tests require a running Camunda cluster, start C8 with:
+
+```
+cd docker-compose
+docker compose up -d
+```
+
+Run acceptance tests with:
+```
+make testacc
+```
