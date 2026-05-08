@@ -125,39 +125,9 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	// Creating a user is eventually consistent, so we need to wait until the
-	// user is actually created before we can read it and save it into the
-	// state.
-	createState := &retry.StateChangeConf{
-		Pending: []string{
-			fmt.Sprintf("%d", http.StatusNotFound),
-		},
-
-		Target: []string{
-			fmt.Sprintf("%d", http.StatusOK),
-		},
-
-		// How many times the target state has to be reached to continue.
-		ContinuousTargetOccurence: 1,
-
-		Refresh: func() (any, string, error) {
-			readResp, err := r.client.GetUserWithResponse(ctx, data.Username.ValueString())
-
-			if err != nil {
-				return nil, "", err
-			}
-
-			return readResp, fmt.Sprintf("%d", readResp.StatusCode()), nil
-		},
-
-		Timeout:    1 * time.Minute,
-		Delay:      2 * time.Second,
-		MinTimeout: 2 * time.Second,
-	}
-
-	_, err = createState.WaitForStateContext(ctx)
+	_, err = readUserWithRetry(ctx, r.client, data.Username.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Timeout", fmt.Sprintf("Timed out while waiting for user to be created: %s", err))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user after creation, got error: %s", err))
 		return
 	}
 
@@ -184,14 +154,9 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	apiResp, err := r.client.GetUserWithResponse(ctx, data.Id.ValueString())
+	apiResp, err := readUserWithRetry(ctx, r.client, data.Username.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user, got error: %s", err))
-		return
-	}
-
-	if apiResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("User with username %s was not found: %d: %s", data.Id.ValueString(), apiResp.StatusCode(), apiResp.Body))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user '%s', got error: %s", data.Id.ValueString(), err))
 		return
 	}
 
@@ -262,4 +227,51 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 
 func (r *UserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// readUserWithRetry handles the eventual consistency of fetching a user by retrying a few times.
+func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses, username string) (*camunda.GetUserResponse, error) {
+	// Reading a user is eventually consistent: if a user is just created, it may not be immediately available through the API.
+	// Handle the eventual consistency by retrying a few times with some delay in between until the user is found or we timeout.
+	createState := &retry.StateChangeConf{
+		Pending: []string{
+			fmt.Sprintf("%d", http.StatusNotFound),
+		},
+
+		Target: []string{
+			fmt.Sprintf("%d", http.StatusOK),
+		},
+
+		// How many times the target state has to be reached to continue.
+		ContinuousTargetOccurence: 1,
+
+		Refresh: func() (any, string, error) {
+			readResp, err := client.GetUserWithResponse(ctx, username)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			return readResp, fmt.Sprintf("%d", readResp.StatusCode()), nil
+		},
+
+		// Don't wait too long for the first poll
+		Delay:      1 * time.Second,
+		MinTimeout: 2 * time.Second,
+		// Wait at most this duration before consideing the user has not been found
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := createState.WaitForStateContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Timed out while waiting for user to be created: %w", err)
+	}
+
+	r, ok := resp.(*camunda.GetUserResponse)
+	if !ok {
+		// This should not happen
+		return nil, fmt.Errorf("Unexpected type for user read response: %T", resp)
+	}
+
+	return r, nil
 }

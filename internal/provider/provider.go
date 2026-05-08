@@ -36,10 +36,13 @@ type CamundaClusterProvider struct {
 	version string
 }
 
+// CamundaClusterBasicAuthProviderModel describes the provider data model for authenticating with HTTP basic auth.
 type CamundaClusterBasicAuthProviderModel struct {
 	Username types.String `tfsdk:"username"`
 	Password types.String `tfsdk:"password"`
 }
+
+// CamundaClusterOIDCAuthProviderModel describes the provider data model for authenticating with OIDC.
 type CamundaClusterOIDCAuthProviderModel struct {
 	ClientID     types.String `tfsdk:"client_id"`
 	ClientSecret types.String `tfsdk:"client_secret"`
@@ -47,7 +50,7 @@ type CamundaClusterOIDCAuthProviderModel struct {
 	Audience     types.String `tfsdk:"audience"`
 }
 
-// CamundaClusterProviderModel describes the provider data model.
+// CamundaClusterProviderModel describes the general provider data model.
 type CamundaClusterProviderModel struct {
 	BasicAuth *CamundaClusterBasicAuthProviderModel `tfsdk:"basic_auth"`
 	OIDC      *CamundaClusterOIDCAuthProviderModel  `tfsdk:"oidc"`
@@ -151,6 +154,8 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 		})
 
 		opts = append(opts, opt)
+	} else {
+		tflog.Trace(ctx, "no authentication configured for the Camunda client, will only make unauthenticated requests")
 	}
 
 	var client *camunda.ClientWithResponses
