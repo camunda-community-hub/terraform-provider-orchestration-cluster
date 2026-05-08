@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -92,14 +91,9 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		return
 	}
 
-	apiResp, err := d.client.GetUserWithResponse(ctx, data.Username.ValueString())
+	apiResp, err := readUserWithRetry(ctx, d.client, data.Username.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user, got error: %s", err))
-		return
-	}
-
-	if apiResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("User with username %s was not found", data.Username.ValueString()))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user '%s', got error: %s", data.Id.ValueString(), err))
 		return
 	}
 
@@ -108,9 +102,7 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	data.Email = types.StringValue(*apiResp.JSON200.Email)
 	data.Username = types.StringValue(apiResp.JSON200.Username)
 
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "read cluster topology data source")
+	tflog.Trace(ctx, "read user data source")
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

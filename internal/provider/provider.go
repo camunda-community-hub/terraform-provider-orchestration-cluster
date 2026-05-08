@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
@@ -35,13 +36,25 @@ type CamundaClusterProvider struct {
 	version string
 }
 
-// CamundaClusterProviderModel describes the provider data model.
-type CamundaClusterProviderModel struct {
+// CamundaClusterBasicAuthProviderModel describes the provider data model for authenticating with HTTP basic auth.
+type CamundaClusterBasicAuthProviderModel struct {
+	Username types.String `tfsdk:"username"`
+	Password types.String `tfsdk:"password"`
+}
+
+// CamundaClusterOIDCAuthProviderModel describes the provider data model for authenticating with OIDC.
+type CamundaClusterOIDCAuthProviderModel struct {
 	ClientID     types.String `tfsdk:"client_id"`
 	ClientSecret types.String `tfsdk:"client_secret"`
 	LoginURL     types.String `tfsdk:"login_url"`
 	Audience     types.String `tfsdk:"audience"`
-	URL          types.String `tfsdk:"url"`
+}
+
+// CamundaClusterProviderModel describes the general provider data model.
+type CamundaClusterProviderModel struct {
+	BasicAuth *CamundaClusterBasicAuthProviderModel `tfsdk:"basic_auth"`
+	OIDC      *CamundaClusterOIDCAuthProviderModel  `tfsdk:"oidc"`
+	URL       types.String                          `tfsdk:"url"`
 }
 
 func (p *CamundaClusterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -52,22 +65,40 @@ func (p *CamundaClusterProvider) Metadata(ctx context.Context, req provider.Meta
 func (p *CamundaClusterProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"audience": schema.StringAttribute{
-				MarkdownDescription: "The audience for the token.",
-				Required:            true,
+			"basic_auth": schema.SingleNestedAttribute{
+				Attributes: map[string]schema.Attribute{
+					"username": schema.StringAttribute{
+						MarkdownDescription: "The HTTP Basic Auth username.",
+						Required:            true,
+					},
+					"password": schema.StringAttribute{
+						MarkdownDescription: "The HTTP Basic Auth password.",
+						Required:            true,
+					},
+				},
+				Optional: true,
 			},
-			"client_id": schema.StringAttribute{
-				MarkdownDescription: "The client ID",
-				Required:            true,
-			},
-			"client_secret": schema.StringAttribute{
-				MarkdownDescription: "The client Secret",
-				Required:            true,
-				Sensitive:           true,
-			},
-			"login_url": schema.StringAttribute{
-				MarkdownDescription: "The URL of the authentication server.",
-				Required:            true,
+			"oidc": schema.SingleNestedAttribute{
+				Attributes: map[string]schema.Attribute{
+					"audience": schema.StringAttribute{
+						MarkdownDescription: "The audience for the token.",
+						Required:            true,
+					},
+					"client_id": schema.StringAttribute{
+						MarkdownDescription: "The client ID",
+						Required:            true,
+					},
+					"client_secret": schema.StringAttribute{
+						MarkdownDescription: "The client Secret",
+						Required:            true,
+						Sensitive:           true,
+					},
+					"login_url": schema.StringAttribute{
+						MarkdownDescription: "The URL of the authentication server.",
+						Required:            true,
+					},
+				},
+				Optional: true,
 			},
 			"url": schema.StringAttribute{
 				MarkdownDescription: "The URL of the Camunda cluster API.",
@@ -89,28 +120,46 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 	// Configuration values are now available.
 	// if data.Endpoint.IsNull() { /* ... */ }
 
-	token, err := getAuthToken(
-		data.LoginURL.ValueString(),
-		data.Audience.ValueString(),
-		data.ClientID.ValueString(),
-		data.ClientSecret.ValueString(),
-	)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Authentication Failed",
-			fmt.Sprintf("Unable to authenticate with the provided credentials: %s", err),
-		)
-		return
-	}
+	var opts []camunda.ClientOption
 
-	client, err := camunda.NewClientWithResponses(
-		data.URL.ValueString(),
-		camunda.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+	if data.BasicAuth != nil {
+		tflog.Trace(ctx, "will configure the Camunda client with basic auth")
+		opt := camunda.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+			req.SetBasicAuth(
+				data.BasicAuth.Username.ValueString(),
+				data.BasicAuth.Password.ValueString(),
+			)
+			return nil
+		})
+		opts = append(opts, opt)
+	} else if data.OIDC != nil {
+		tflog.Trace(ctx, "will configure the Camunda client with Bearer token")
+		token, err := getAuthToken(
+			data.OIDC.LoginURL.ValueString(),
+			data.OIDC.Audience.ValueString(),
+			data.OIDC.ClientID.ValueString(),
+			data.OIDC.ClientSecret.ValueString(),
+		)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Authentication Failed",
+				fmt.Sprintf("Unable to authenticate with the provided credentials: %s", err),
+			)
+			return
+		}
+
+		opt := camunda.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			req.Header.Set("Authorization", "Bearer "+token)
 			return nil
-		}),
-	)
+		})
 
+		opts = append(opts, opt)
+	} else {
+		tflog.Trace(ctx, "no authentication configured for the Camunda client, will only make unauthenticated requests")
+	}
+
+	var client *camunda.ClientWithResponses
+	client, err := camunda.NewClientWithResponses(data.URL.ValueString(), opts...)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Client Creation Failed",

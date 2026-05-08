@@ -16,13 +16,24 @@ func TestAccExampleDataSource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Read testing
 			{
-				Config: testAccExampleDataSourceConfig,
+				Config: providerConfig + testAccExampleDataSourceConfig,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_example.test",
+						"data.camundacluster_user.demo",
 						tfjsonpath.New("id"),
-						knownvalue.StringExact("example-id"),
+						knownvalue.StringExact("demo"),
 					),
+					statecheck.ExpectKnownValue(
+						"data.camundacluster_user.demo",
+						tfjsonpath.New("username"),
+						knownvalue.StringExact("demo"),
+					),
+					statecheck.ExpectKnownValue(
+						"data.camundacluster_user.demo",
+						tfjsonpath.New("name"),
+						knownvalue.StringExact("Demo User"),
+					),
+					// TODO: test password unset
 				},
 			},
 		},
@@ -30,7 +41,7 @@ func TestAccExampleDataSource(t *testing.T) {
 }
 
 const testAccExampleDataSourceConfig = `
-data "camundacluster_example" "test" {
-  configurable_attribute = "example"
+data "camundacluster_user" "demo" {
+  username = "demo"
 }
 `

@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
@@ -32,6 +36,7 @@ type UserResourceModel struct {
 	Email    types.String `tfsdk:"email"`
 	Id       types.String `tfsdk:"id"`
 	Name     types.String `tfsdk:"name"`
+	Password types.String `tfsdk:"password"`
 	Username types.String `tfsdk:"username"`
 }
 
@@ -56,9 +61,17 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				MarkdownDescription: "The name of the user.",
 				Required:            true,
 			},
+			"password": schema.StringAttribute{
+				MarkdownDescription: "The password of the user.",
+				Required:            true,
+				Sensitive:           true,
+			},
 			"username": schema.StringAttribute{
 				MarkdownDescription: "The unique name of a user.",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -97,6 +110,7 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	request := camunda.CreateUserJSONRequestBody{
 		Email:    data.Email.ValueStringPointer(),
 		Name:     data.Name.ValueStringPointer(),
+		Password: data.Password.ValueString(),
 		Username: data.Username.ValueString(),
 	}
 	apiResp, err := r.client.CreateUserWithResponse(ctx, request)
@@ -108,6 +122,12 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	if apiResp.StatusCode() != http.StatusCreated {
 		resp.Diagnostics.AddError("Not Created", fmt.Sprintf("Error while creating user, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
+		return
+	}
+
+	_, err = readUserWithRetry(ctx, r.client, data.Username.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user after creation, got error: %s", err))
 		return
 	}
 
@@ -134,14 +154,9 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	apiResp, err := r.client.GetUserWithResponse(ctx, data.Username.ValueString())
+	apiResp, err := readUserWithRetry(ctx, r.client, data.Username.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user, got error: %s", err))
-		return
-	}
-
-	if apiResp.StatusCode() != 200 {
-		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("User with username %s was not found", data.Username.ValueString()))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user '%s', got error: %s", data.Username.ValueString(), err))
 		return
 	}
 
@@ -211,5 +226,52 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 }
 
 func (r *UserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("username"), req, resp)
+}
+
+// readUserWithRetry handles the eventual consistency of fetching a user by retrying a few times.
+func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses, username string) (*camunda.GetUserResponse, error) {
+	// Reading a user is eventually consistent: if a user is just created, it may not be immediately available through the API.
+	// Handle the eventual consistency by retrying a few times with some delay in between until the user is found or we timeout.
+	createState := &retry.StateChangeConf{
+		Pending: []string{
+			fmt.Sprintf("%d", http.StatusNotFound),
+		},
+
+		Target: []string{
+			fmt.Sprintf("%d", http.StatusOK),
+		},
+
+		// How many times the target state has to be reached to continue.
+		ContinuousTargetOccurence: 1,
+
+		Refresh: func() (any, string, error) {
+			readResp, err := client.GetUserWithResponse(ctx, username)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			return readResp, fmt.Sprintf("%d", readResp.StatusCode()), nil
+		},
+
+		// Don't wait too long for the first poll
+		Delay:      1 * time.Second,
+		MinTimeout: 2 * time.Second,
+		// Wait at most this duration before consideing the user has not been found
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := createState.WaitForStateContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("timed out while waiting for user '%s' to be created: %w", username, err)
+	}
+
+	r, ok := resp.(*camunda.GetUserResponse)
+	if !ok {
+		// This should not happen
+		return nil, fmt.Errorf("unexpected type for user read response: %T", resp)
+	}
+
+	return r, nil
 }

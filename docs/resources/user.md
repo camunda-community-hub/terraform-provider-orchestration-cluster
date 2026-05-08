@@ -19,6 +19,7 @@ A Camunda cluster user
 
 - `email` (String) The email of the user.
 - `name` (String) The name of the user.
+- `password` (String, Sensitive) The password of the user.
 - `username` (String) The unique name of a user.
 
 ### Read-Only

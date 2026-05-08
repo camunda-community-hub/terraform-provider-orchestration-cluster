@@ -22,8 +22,28 @@ provider "scaffolding" {
 
 ### Required
 
+- `url` (String) The URL of the Camunda cluster API.
+
+### Optional
+
+- `basic_auth` (Attributes) (see [below for nested schema](#nestedatt--basic_auth))
+- `oidc` (Attributes) (see [below for nested schema](#nestedatt--oidc))
+
+<a id="nestedatt--basic_auth"></a>
+### Nested Schema for `basic_auth`
+
+Required:
+
+- `password` (String) The HTTP Basic Auth password.
+- `username` (String) The HTTP Basic Auth username.
+
+
+<a id="nestedatt--oidc"></a>
+### Nested Schema for `oidc`
+
+Required:
+
 - `audience` (String) The audience for the token.
 - `client_id` (String) The client ID
 - `client_secret` (String, Sensitive) The client Secret
 - `login_url` (String) The URL of the authentication server.
-- `url` (String) The URL of the Camunda cluster API.
