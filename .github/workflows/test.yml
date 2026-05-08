@@ -54,7 +54,7 @@ jobs:
 
   # Run acceptance tests in a matrix with Terraform CLI versions
   test:
-    name: 'Acceptance Tests: Terraform ${{ matrix.terraform }}'
+    name: 'Acceptance Tests: Terraform ${{ matrix.terraform }} / Camunda ${{ matrix.camunda }}'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -78,6 +78,8 @@ jobs:
         uses: docker/setup-compose-action@v2
       - name: Pull test images
         run: docker compose pull
+        env:
+          CAMUNDA_VERSION: ${{ matrix.camunda }}
         working-directory: ./docker-compose
       - name: Start test containers
         env:
@@ -89,8 +91,6 @@ jobs:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
-      - name: Wait for containers to be ready
-        run: ./docker-compose/wait.sh
       - run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
         env:

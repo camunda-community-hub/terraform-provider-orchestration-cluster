@@ -1,10 +1,14 @@
 package provider
 
 import (
+	"fmt"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 )
 
 const (
@@ -39,4 +43,25 @@ func testAccPreCheck(t *testing.T) {
 	// You can add code here to run prior to any test case execution, for example assertions
 	// about the appropriate environment variables being set are common to see in a pre-check
 	// function.
+
+	// This endpoint doesn't require authentication
+	statusEndpoint := "http://localhost:8080/v2/status"
+	const expectedStatusCode = http.StatusNoContent
+
+	err := retry.RetryContext(t.Context(), 30*time.Second, func() *retry.RetryError {
+		resp, err := http.Get(statusEndpoint)
+		if err != nil {
+			return retry.RetryableError(fmt.Errorf("unable to query %s: %w", statusEndpoint, err))
+		}
+
+		got := resp.StatusCode
+		if got == expectedStatusCode {
+			return nil
+		}
+		return retry.RetryableError(fmt.Errorf("expected HTTP %d, got %d", expectedStatusCode, got))
+	})
+
+	if err != nil {
+		t.Fatalf("pre-check failed: %s", err)
+	}
 }
