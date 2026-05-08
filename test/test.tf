@@ -20,12 +20,12 @@ provider "camundacluster" {
   #  password = "admin"
   #}
 
-  oidc = {
-    login_url     = var.login_url
-    audience      = var.audience
-    client_id     = var.client_id
-    client_secret = var.client_secret
-  }
+  #oidc = {
+  #  login_url     = var.login_url
+  #  audience      = var.audience
+  #  client_id     = var.client_id
+  #  client_secret = var.client_secret
+  #}
 }
 
 #data "camundacluster_user" "test" {

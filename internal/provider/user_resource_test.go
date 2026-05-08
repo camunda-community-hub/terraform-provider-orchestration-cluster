@@ -42,7 +42,7 @@ func TestAccUserResource(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				// Update the test resource with different parameters
+				// Update the user1 resource with different parameters
 				Config: providerConfig + testAccUserResourceConfig("user2", "Plop Plip"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(

@@ -156,7 +156,7 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	apiResp, err := readUserWithRetry(ctx, r.client, data.Username.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user '%s', got error: %s", data.Id.ValueString(), err))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user '%s', got error: %s", data.Username.ValueString(), err))
 		return
 	}
 
@@ -226,7 +226,7 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 }
 
 func (r *UserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("username"), req, resp)
 }
 
 // readUserWithRetry handles the eventual consistency of fetching a user by retrying a few times.
@@ -264,7 +264,7 @@ func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses,
 
 	resp, err := createState.WaitForStateContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("timed out while waiting for user to be created: %w", err)
+		return nil, fmt.Errorf("timed out while waiting for user '%s' to be created: %w", username, err)
 	}
 
 	r, ok := resp.(*camunda.GetUserResponse)
