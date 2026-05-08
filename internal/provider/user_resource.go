@@ -264,13 +264,13 @@ func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses,
 
 	resp, err := createState.WaitForStateContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Timed out while waiting for user to be created: %w", err)
+		return nil, fmt.Errorf("timed out while waiting for user to be created: %w", err)
 	}
 
 	r, ok := resp.(*camunda.GetUserResponse)
 	if !ok {
 		// This should not happen
-		return nil, fmt.Errorf("Unexpected type for user read response: %T", resp)
+		return nil, fmt.Errorf("unexpected type for user read response: %T", resp)
 	}
 
 	return r, nil
