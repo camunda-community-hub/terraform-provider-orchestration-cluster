@@ -41,7 +41,7 @@ provider "camundacluster" {
 
 Required:
 
-- `password` (String) The HTTP Basic Auth password.
+- `password` (String, Sensitive) The HTTP Basic Auth password.
 - `username` (String) The HTTP Basic Auth username.
 
 
