@@ -108,6 +108,11 @@ func (r *RoleResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	if apiResp.JSON201 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 201 but with no parseable JSON body")
+		return
+	}
+
 	data.Id = types.StringValue(apiResp.JSON201.RoleId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
 	if apiResp.JSON201.Description != nil {
@@ -142,6 +147,11 @@ func (r *RoleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	if apiResp.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading role '%s', got HTTP error: %d", data.Id.ValueString(), apiResp.StatusCode()))
+		return
+	}
+
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
@@ -186,6 +196,11 @@ func (r *RoleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	if apiResp.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError("Not Updated", fmt.Sprintf("Error while updating role, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
+		return
+	}
+
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 

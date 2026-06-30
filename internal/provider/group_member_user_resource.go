@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
@@ -103,6 +104,8 @@ func (r *GroupMemberUserResource) Create(ctx context.Context, req resource.Creat
 
 	data.Id = types.StringValue(data.GroupId.ValueString() + "/" + data.UserId.ValueString())
 
+	tflog.Trace(ctx, "created group member user resource")
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -114,37 +117,14 @@ func (r *GroupMemberUserResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 
-	searchResp, err := r.client.SearchUsersForGroupWithResponse(ctx, data.GroupId.ValueString(), camunda.SearchUsersForGroupJSONRequestBody{})
+	found, err := searchAllGroupUsers(ctx, r.client, data.GroupId.ValueString(), data.UserId.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to search users for group, got error: %s", err))
-		return
-	}
-
-	if searchResp.StatusCode() == http.StatusNotFound {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	if searchResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading group users, got HTTP error: %d", searchResp.StatusCode()))
-		return
-	}
-
-	// Decode items from the raw body
-	var rawResult struct {
-		Items []camunda.GroupUserResult `json:"items"`
-	}
-	if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
-		resp.Diagnostics.AddError("Decode Error", fmt.Sprintf("Unable to decode search response: %s", err))
-		return
-	}
-
-	found := false
-	for _, u := range rawResult.Items {
-		if u.Username == data.UserId.ValueString() {
-			found = true
-			break
+		if err.Error() == "not_found" {
+			resp.State.RemoveResource(ctx)
+			return
 		}
+		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading group users: %s", err))
+		return
 	}
 
 	if !found {
@@ -153,6 +133,56 @@ func (r *GroupMemberUserResource) Read(ctx context.Context, req resource.ReadReq
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+// searchAllGroupUsers pages through all group users and returns true if username is found.
+// Returns an error with message "not_found" if the group itself is not found.
+func searchAllGroupUsers(ctx context.Context, client *camunda.ClientWithResponses, groupId, username string) (bool, error) {
+	var cursor string
+	for {
+		body := camunda.SearchUsersForGroupJSONRequestBody{}
+		if cursor != "" {
+			page := camunda.SearchQueryPageRequest{}
+			if err := page.FromCursorForwardPagination(camunda.CursorForwardPagination{After: cursor}); err != nil {
+				return false, fmt.Errorf("encoding cursor: %w", err)
+			}
+			body.Page = &page
+		}
+
+		searchResp, err := client.SearchUsersForGroupWithResponse(ctx, groupId, body)
+		if err != nil {
+			return false, err
+		}
+		if searchResp.StatusCode() == http.StatusNotFound {
+			return false, fmt.Errorf("not_found")
+		}
+		if searchResp.StatusCode() != http.StatusOK {
+			return false, fmt.Errorf("HTTP %d", searchResp.StatusCode())
+		}
+
+		var page struct {
+			Items []camunda.GroupUserResult `json:"items"`
+			Page  struct {
+				EndCursor        *string `json:"endCursor"`
+				HasMoreTotalItems bool    `json:"hasMoreTotalItems"`
+			} `json:"page"`
+		}
+		if err := json.Unmarshal(searchResp.Body, &page); err != nil {
+			return false, fmt.Errorf("decode: %w", err)
+		}
+
+		for _, u := range page.Items {
+			if string(u.Username) == username {
+				return true, nil
+			}
+		}
+
+		if !page.Page.HasMoreTotalItems || page.Page.EndCursor == nil {
+			break
+		}
+		cursor = *page.Page.EndCursor
+	}
+	return false, nil
 }
 
 func (r *GroupMemberUserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -182,4 +212,6 @@ func (r *GroupMemberUserResource) Delete(ctx context.Context, req resource.Delet
 		resp.Diagnostics.AddError("Delete Error", fmt.Sprintf("Error while unassigning user from group, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
 		return
 	}
+
+	tflog.Trace(ctx, "deleted group member user resource")
 }

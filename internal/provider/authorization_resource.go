@@ -35,7 +35,7 @@ type AuthorizationResourceModel struct {
 	OwnerId      types.String `tfsdk:"owner_id"`
 	ResourceType types.String `tfsdk:"resource_type"`
 	Permissions  types.Set    `tfsdk:"permissions"`
-	ResourceIds  types.Set    `tfsdk:"resource_ids"`
+	ResourceId   types.String `tfsdk:"resource_id"`
 }
 
 func (r *AuthorizationResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -74,13 +74,12 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 					setplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"resource_ids": schema.SetAttribute{
-				MarkdownDescription: "The IDs of resources the permission relates to.",
+			"resource_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the resource the permission relates to. Use \"*\" to match all resources.",
 				Optional:            true,
 				Computed:            true,
-				ElementType:         types.StringType,
-				PlanModifiers: []planmodifier.Set{
-					setplanmodifier.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
@@ -123,37 +122,23 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 		permissionTypes[i] = camunda.PermissionTypeEnum(p)
 	}
 
-	var resourceIds []string
-	resp.Diagnostics.Append(data.ResourceIds.ElementsAs(ctx, &resourceIds, false)...)
-	if resp.Diagnostics.HasError() {
-		return
+	resourceId := "*"
+	if !data.ResourceId.IsNull() && !data.ResourceId.IsUnknown() && data.ResourceId.ValueString() != "" {
+		resourceId = data.ResourceId.ValueString()
+	}
+
+	idReq := camunda.AuthorizationIdBasedRequest{
+		OwnerId:         data.OwnerId.ValueString(),
+		OwnerType:       camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
+		PermissionTypes: permissionTypes,
+		ResourceId:      resourceId,
+		ResourceType:    camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
 	}
 
 	var authReq camunda.AuthorizationRequest
-	if len(resourceIds) > 0 {
-		idReq := camunda.AuthorizationIdBasedRequest{
-			OwnerId:         data.OwnerId.ValueString(),
-			OwnerType:       camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
-			PermissionTypes: permissionTypes,
-			ResourceId:      resourceIds[0],
-			ResourceType:    camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
-		}
-		if err := authReq.FromAuthorizationIdBasedRequest(idReq); err != nil {
-			resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode authorization request: %s", err))
-			return
-		}
-	} else {
-		idReq := camunda.AuthorizationIdBasedRequest{
-			OwnerId:         data.OwnerId.ValueString(),
-			OwnerType:       camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
-			PermissionTypes: permissionTypes,
-			ResourceId:      "*",
-			ResourceType:    camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
-		}
-		if err := authReq.FromAuthorizationIdBasedRequest(idReq); err != nil {
-			resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode authorization request: %s", err))
-			return
-		}
+	if err := authReq.FromAuthorizationIdBasedRequest(idReq); err != nil {
+		resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode authorization request: %s", err))
+		return
 	}
 
 	apiResp, err := r.client.CreateAuthorizationWithResponse(ctx, authReq)
@@ -164,6 +149,11 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 
 	if apiResp.StatusCode() != http.StatusCreated {
 		resp.Diagnostics.AddError("Not Created", fmt.Sprintf("Error while creating authorization, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
+		return
+	}
+
+	if apiResp.JSON201 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 201 but with no parseable JSON body")
 		return
 	}
 
@@ -179,6 +169,11 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 
 	if getResp.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading authorization after creation, got HTTP error: %d", getResp.StatusCode()))
+		return
+	}
+
+	if getResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
@@ -213,6 +208,11 @@ func (r *AuthorizationResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
+		return
+	}
+
 	data = authorizationResultToModel(data.Id, apiResp.JSON200)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -243,37 +243,23 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 		permissionTypes[i] = camunda.PermissionTypeEnum(p)
 	}
 
-	var resourceIds []string
-	resp.Diagnostics.Append(data.ResourceIds.ElementsAs(ctx, &resourceIds, false)...)
-	if resp.Diagnostics.HasError() {
-		return
+	resourceId := "*"
+	if !data.ResourceId.IsNull() && !data.ResourceId.IsUnknown() && data.ResourceId.ValueString() != "" {
+		resourceId = data.ResourceId.ValueString()
+	}
+
+	idReq := camunda.AuthorizationIdBasedRequest{
+		OwnerId:         data.OwnerId.ValueString(),
+		OwnerType:       camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
+		PermissionTypes: permissionTypes,
+		ResourceId:      resourceId,
+		ResourceType:    camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
 	}
 
 	var updateReq camunda.UpdateAuthorizationJSONRequestBody
-	if len(resourceIds) > 0 {
-		idReq := camunda.AuthorizationIdBasedRequest{
-			OwnerId:         data.OwnerId.ValueString(),
-			OwnerType:       camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
-			PermissionTypes: permissionTypes,
-			ResourceId:      resourceIds[0],
-			ResourceType:    camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
-		}
-		if err := updateReq.FromAuthorizationIdBasedRequest(idReq); err != nil {
-			resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode authorization request: %s", err))
-			return
-		}
-	} else {
-		idReq := camunda.AuthorizationIdBasedRequest{
-			OwnerId:         data.OwnerId.ValueString(),
-			OwnerType:       camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
-			PermissionTypes: permissionTypes,
-			ResourceId:      "*",
-			ResourceType:    camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
-		}
-		if err := updateReq.FromAuthorizationIdBasedRequest(idReq); err != nil {
-			resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode authorization request: %s", err))
-			return
-		}
+	if err := updateReq.FromAuthorizationIdBasedRequest(idReq); err != nil {
+		resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode authorization request: %s", err))
+		return
 	}
 
 	apiResp, err := r.client.UpdateAuthorizationWithResponse(ctx, state.Id.ValueString(), updateReq)
@@ -296,6 +282,11 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 
 	if getResp.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading authorization after update, got HTTP error: %d", getResp.StatusCode()))
+		return
+	}
+
+	if getResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
@@ -348,12 +339,10 @@ func authorizationResultToModel(id types.String, result *camunda.AuthorizationRe
 	permSet, _ := types.SetValueFrom(context.Background(), types.StringType, perms)
 	data.Permissions = permSet
 
-	if result.ResourceId != nil && *result.ResourceId != "" && *result.ResourceId != "*" {
-		resourceIds := []string{*result.ResourceId}
-		resourceIdSet, _ := types.SetValueFrom(context.Background(), types.StringType, resourceIds)
-		data.ResourceIds = resourceIdSet
+	if result.ResourceId != nil && *result.ResourceId != "" {
+		data.ResourceId = types.StringValue(*result.ResourceId)
 	} else {
-		data.ResourceIds, _ = types.SetValueFrom(context.Background(), types.StringType, []string{})
+		data.ResourceId = types.StringValue("*")
 	}
 
 	return data
