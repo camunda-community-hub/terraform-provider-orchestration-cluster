@@ -76,7 +76,7 @@ resource "camundacluster_role" "test" {
 
 func checkRoleExistsInEngine(roleName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		client, err := camunda.NewClientWithResponses("http://localhost:8080/v2")
+		client, err := camunda.NewClientWithResponses(testClusterURL)
 		if err != nil {
 			return err
 		}

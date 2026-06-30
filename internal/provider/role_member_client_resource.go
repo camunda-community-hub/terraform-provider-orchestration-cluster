@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
@@ -103,6 +104,8 @@ func (r *RoleMemberClientResource) Create(ctx context.Context, req resource.Crea
 
 	data.Id = types.StringValue(data.RoleId.ValueString() + "/" + data.ClientId.ValueString())
 
+	tflog.Trace(ctx, "created role member client resource")
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -114,36 +117,14 @@ func (r *RoleMemberClientResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	searchResp, err := r.client.SearchClientsForRoleWithResponse(ctx, data.RoleId.ValueString(), camunda.SearchClientsForRoleJSONRequestBody{})
+	found, err := searchAllRoleClients(ctx, r.client, data.RoleId.ValueString(), data.ClientId.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to search clients for role, got error: %s", err))
-		return
-	}
-
-	if searchResp.StatusCode() == http.StatusNotFound {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	if searchResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading role clients, got HTTP error: %d", searchResp.StatusCode()))
-		return
-	}
-
-	var rawResult struct {
-		Items []camunda.RoleClientResult `json:"items"`
-	}
-	if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
-		resp.Diagnostics.AddError("Decode Error", fmt.Sprintf("Unable to decode search response: %s", err))
-		return
-	}
-
-	found := false
-	for _, c := range rawResult.Items {
-		if c.ClientId == data.ClientId.ValueString() {
-			found = true
-			break
+		if err.Error() == "not_found" {
+			resp.State.RemoveResource(ctx)
+			return
 		}
+		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading role clients: %s", err))
+		return
 	}
 
 	if !found {
@@ -152,6 +133,56 @@ func (r *RoleMemberClientResource) Read(ctx context.Context, req resource.ReadRe
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+// searchAllRoleClients pages through all role clients and returns true if clientId is found.
+// Returns an error with message "not_found" if the role itself is not found.
+func searchAllRoleClients(ctx context.Context, client *camunda.ClientWithResponses, roleId, clientId string) (bool, error) {
+	var cursor string
+	for {
+		body := camunda.SearchClientsForRoleJSONRequestBody{}
+		if cursor != "" {
+			page := camunda.SearchQueryPageRequest{}
+			if err := page.FromCursorForwardPagination(camunda.CursorForwardPagination{After: cursor}); err != nil {
+				return false, fmt.Errorf("encoding cursor: %w", err)
+			}
+			body.Page = &page
+		}
+
+		searchResp, err := client.SearchClientsForRoleWithResponse(ctx, roleId, body)
+		if err != nil {
+			return false, err
+		}
+		if searchResp.StatusCode() == http.StatusNotFound {
+			return false, fmt.Errorf("not_found")
+		}
+		if searchResp.StatusCode() != http.StatusOK {
+			return false, fmt.Errorf("HTTP %d", searchResp.StatusCode())
+		}
+
+		var page struct {
+			Items []camunda.RoleClientResult `json:"items"`
+			Page  struct {
+				EndCursor        *string `json:"endCursor"`
+				HasMoreTotalItems bool    `json:"hasMoreTotalItems"`
+			} `json:"page"`
+		}
+		if err := json.Unmarshal(searchResp.Body, &page); err != nil {
+			return false, fmt.Errorf("decode: %w", err)
+		}
+
+		for _, c := range page.Items {
+			if c.ClientId == clientId {
+				return true, nil
+			}
+		}
+
+		if !page.Page.HasMoreTotalItems || page.Page.EndCursor == nil {
+			break
+		}
+		cursor = *page.Page.EndCursor
+	}
+	return false, nil
 }
 
 func (r *RoleMemberClientResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -180,4 +211,6 @@ func (r *RoleMemberClientResource) Delete(ctx context.Context, req resource.Dele
 		resp.Diagnostics.AddError("Delete Error", fmt.Sprintf("Error while unassigning role from client, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
 		return
 	}
+
+	tflog.Trace(ctx, "deleted role member client resource")
 }

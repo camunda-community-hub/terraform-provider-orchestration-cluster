@@ -85,6 +85,11 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
+		return
+	}
+
 	data.Id = types.StringValue(apiResp.JSON200.GroupId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
 

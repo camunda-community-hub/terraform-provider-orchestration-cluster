@@ -41,7 +41,7 @@ resource "camundacluster_group_member_client" "test" {
 
 func checkGroupClientAssignmentExistsInEngine() resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		client, err := camunda.NewClientWithResponses("http://localhost:8080/v2")
+		client, err := camunda.NewClientWithResponses(testClusterURL)
 		if err != nil {
 			return err
 		}

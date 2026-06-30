@@ -74,6 +74,7 @@ func (p *CamundaClusterProvider) Schema(ctx context.Context, req provider.Schema
 					"password": schema.StringAttribute{
 						MarkdownDescription: "The HTTP Basic Auth password.",
 						Required:            true,
+						Sensitive:           true,
 					},
 				},
 				Optional: true,
@@ -116,9 +117,6 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
 
 	var opts []camunda.ClientOption
 
