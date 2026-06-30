@@ -90,7 +90,7 @@ func (r *GroupMemberUserResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	apiResp, err := r.client.AssignUserToGroupWithResponse(ctx, data.GroupId.ValueString(), camunda.Username(data.UserId.ValueString()))
+	apiResp, err := r.client.AssignUserToGroupWithResponse(ctx, data.GroupId.ValueString(), data.UserId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to assign user to group, got error: %s", err))
 		return
@@ -141,7 +141,7 @@ func (r *GroupMemberUserResource) Read(ctx context.Context, req resource.ReadReq
 
 	found := false
 	for _, u := range rawResult.Items {
-		if string(u.Username) == data.UserId.ValueString() {
+		if u.Username == data.UserId.ValueString() {
 			found = true
 			break
 		}
@@ -167,7 +167,7 @@ func (r *GroupMemberUserResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 
-	apiResp, err := r.client.UnassignUserFromGroupWithResponse(ctx, data.GroupId.ValueString(), camunda.Username(data.UserId.ValueString()))
+	apiResp, err := r.client.UnassignUserFromGroupWithResponse(ctx, data.GroupId.ValueString(), data.UserId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to unassign user from group, got error: %s", err))
 		return

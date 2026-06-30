@@ -72,7 +72,7 @@ func checkRoleUserAssignmentExistsInEngine() resource.TestCheckFunc {
 				return fmt.Errorf("decode failed: %w", err)
 			}
 			for _, u := range rawResult.Items {
-				if string(u.Username) == uid {
+				if u.Username == uid {
 					return nil
 				}
 			}
