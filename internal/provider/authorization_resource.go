@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -177,7 +178,12 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	data = authorizationResultToModel(data.Id, getResp.JSON200)
+	var modelDiags diag.Diagnostics
+	data, modelDiags = authorizationResultToModel(ctx, data.Id, getResp.JSON200)
+	resp.Diagnostics.Append(modelDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	tflog.Trace(ctx, "created authorization resource")
 
@@ -213,7 +219,12 @@ func (r *AuthorizationResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
-	data = authorizationResultToModel(data.Id, apiResp.JSON200)
+	var readModelDiags diag.Diagnostics
+	data, readModelDiags = authorizationResultToModel(ctx, data.Id, apiResp.JSON200)
+	resp.Diagnostics.Append(readModelDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -290,7 +301,12 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
-	data = authorizationResultToModel(state.Id, getResp.JSON200)
+	var updateModelDiags diag.Diagnostics
+	data, updateModelDiags = authorizationResultToModel(ctx, state.Id, getResp.JSON200)
+	resp.Diagnostics.Append(updateModelDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -324,7 +340,7 @@ func (r *AuthorizationResource) ImportState(ctx context.Context, req resource.Im
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func authorizationResultToModel(id types.String, result *camunda.AuthorizationResult) AuthorizationResourceModel {
+func authorizationResultToModel(ctx context.Context, id types.String, result *camunda.AuthorizationResult) (AuthorizationResourceModel, diag.Diagnostics) {
 	data := AuthorizationResourceModel{
 		Id:           id,
 		OwnerId:      types.StringValue(result.OwnerId),
@@ -336,7 +352,7 @@ func authorizationResultToModel(id types.String, result *camunda.AuthorizationRe
 	for i, p := range result.PermissionTypes {
 		perms[i] = string(p)
 	}
-	permSet, _ := types.SetValueFrom(context.Background(), types.StringType, perms)
+	permSet, diags := types.SetValueFrom(ctx, types.StringType, perms)
 	data.Permissions = permSet
 
 	if result.ResourceId != nil && *result.ResourceId != "" {
@@ -345,5 +361,5 @@ func authorizationResultToModel(id types.String, result *camunda.AuthorizationRe
 		data.ResourceId = types.StringValue("*")
 	}
 
-	return data
+	return data, diags
 }
