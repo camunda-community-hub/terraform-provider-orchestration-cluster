@@ -98,6 +98,11 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
+	if apiResp.JSON201 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 201 but with no parseable JSON body")
+		return
+	}
+
 	data.Id = types.StringValue(apiResp.JSON201.GroupId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
 
@@ -127,6 +132,11 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 	if apiResp.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("Error while reading group, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
+		return
+	}
+
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
@@ -162,6 +172,11 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	if apiResp.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError("Not Updated", fmt.Sprintf("Error while updating group, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
+		return
+	}
+
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 

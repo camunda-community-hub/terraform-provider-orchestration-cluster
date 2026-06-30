@@ -90,6 +90,11 @@ func (d *RoleDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		return
 	}
 
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
+		return
+	}
+
 	data.Id = types.StringValue(apiResp.JSON200.RoleId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
 	if apiResp.JSON200.Description != nil {

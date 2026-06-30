@@ -38,14 +38,14 @@ resource "camundacluster_authorization" "test" {
   owner_id      = "demo"
   resource_type = "PROCESS_DEFINITION"
   permissions   = ["READ"]
-  resource_ids  = ["test-process"]
+  resource_id   = "test-process"
 }
 `
 }
 
 func checkAuthorizationExistsInEngine() resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		client, err := camunda.NewClientWithResponses("http://localhost:8080/v2")
+		client, err := camunda.NewClientWithResponses(testClusterURL)
 		if err != nil {
 			return err
 		}
