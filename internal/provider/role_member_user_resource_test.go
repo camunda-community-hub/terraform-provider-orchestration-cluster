@@ -1,0 +1,83 @@
+package provider
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"testing"
+
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
+
+	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
+)
+
+func TestAccRoleMemberUserResource(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: providerConfig + testAccRoleMemberUserResourceConfig(),
+				Check:  checkRoleUserAssignmentExistsInEngine(),
+			},
+		},
+	})
+}
+
+func testAccRoleMemberUserResourceConfig() string {
+	return `
+resource "camundacluster_user" "rolememberuser" {
+  username = "rolememberuser1"
+  name     = "Role Member User"
+  email    = "rolememberuser1@example.com"
+  password = "testpass123"
+}
+
+resource "camundacluster_role" "rolememberrole" {
+  name = "rolememberrole"
+}
+
+resource "camundacluster_role_member_user" "test" {
+  role_id = camundacluster_role.rolememberrole.id
+  user_id = camundacluster_user.rolememberuser.id
+}
+`
+}
+
+func checkRoleUserAssignmentExistsInEngine() resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		client, err := camunda.NewClientWithResponses("http://localhost:8080/v2")
+		if err != nil {
+			return err
+		}
+		for _, rs := range s.RootModule().Resources {
+			if rs.Type != "camundacluster_role_member_user" {
+				continue
+			}
+			rid := rs.Primary.Attributes["role_id"]
+			uid := rs.Primary.Attributes["user_id"]
+			searchResp, err := client.SearchUsersForRoleWithResponse(context.Background(), rid, camunda.SearchUsersForRoleJSONRequestBody{})
+			if err != nil {
+				return fmt.Errorf("engine API call failed: %w", err)
+			}
+			if searchResp.StatusCode() != 200 {
+				return fmt.Errorf("search users for role %s failed (HTTP %d)", rid, searchResp.StatusCode())
+			}
+			var rawResult struct {
+				Items []camunda.RoleUserResult `json:"items"`
+			}
+			if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
+				return fmt.Errorf("decode failed: %w", err)
+			}
+			for _, u := range rawResult.Items {
+				if string(u.Username) == uid {
+					return nil
+				}
+			}
+			return fmt.Errorf("user %s not found in role %s in engine", uid, rid)
+		}
+		return fmt.Errorf("role_member_user resource not found in Terraform state")
+	}
+}
