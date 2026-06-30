@@ -163,7 +163,7 @@ func searchAllGroupUsers(ctx context.Context, client *camunda.ClientWithResponse
 		var page struct {
 			Items []camunda.GroupUserResult `json:"items"`
 			Page  struct {
-				EndCursor        *string `json:"endCursor"`
+				EndCursor         *string `json:"endCursor"`
 				HasMoreTotalItems bool    `json:"hasMoreTotalItems"`
 			} `json:"page"`
 		}
@@ -172,7 +172,7 @@ func searchAllGroupUsers(ctx context.Context, client *camunda.ClientWithResponse
 		}
 
 		for _, u := range page.Items {
-			if string(u.Username) == username {
+			if u.Username == username {
 				return true, nil
 			}
 		}
