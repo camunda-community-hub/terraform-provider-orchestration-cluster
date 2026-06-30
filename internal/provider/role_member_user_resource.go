@@ -90,7 +90,7 @@ func (r *RoleMemberUserResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	apiResp, err := r.client.AssignRoleToUserWithResponse(ctx, data.RoleId.ValueString(), camunda.Username(data.UserId.ValueString()))
+	apiResp, err := r.client.AssignRoleToUserWithResponse(ctx, data.RoleId.ValueString(), data.UserId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to assign role to user, got error: %s", err))
 		return
@@ -140,7 +140,7 @@ func (r *RoleMemberUserResource) Read(ctx context.Context, req resource.ReadRequ
 
 	found := false
 	for _, u := range rawResult.Items {
-		if string(u.Username) == data.UserId.ValueString() {
+		if u.Username == data.UserId.ValueString() {
 			found = true
 			break
 		}
@@ -166,7 +166,7 @@ func (r *RoleMemberUserResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
-	apiResp, err := r.client.UnassignRoleFromUserWithResponse(ctx, data.RoleId.ValueString(), camunda.Username(data.UserId.ValueString()))
+	apiResp, err := r.client.UnassignRoleFromUserWithResponse(ctx, data.RoleId.ValueString(), data.UserId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to unassign role from user, got error: %s", err))
 		return
