@@ -211,6 +211,14 @@ func (p *CamundaClusterProvider) Resources(ctx context.Context) []func() resourc
 	return []func() resource.Resource{
 		NewExampleResource,
 		NewUserResource,
+		NewGroupResource,
+		NewRoleResource,
+		NewAuthorizationResource,
+		NewGroupMemberUserResource,
+		NewGroupMemberClientResource,
+		NewRoleMemberUserResource,
+		NewRoleMemberClientResource,
+		NewRoleMemberGroupResource,
 	}
 }
 
@@ -225,6 +233,8 @@ func (p *CamundaClusterProvider) DataSources(ctx context.Context) []func() datas
 		NewExampleDataSource,
 		NewClusterTopologyDataSource,
 		NewUserDataSource,
+		NewGroupDataSource,
+		NewRoleDataSource,
 	}
 }
 
