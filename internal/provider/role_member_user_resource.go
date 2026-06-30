@@ -163,7 +163,7 @@ func searchAllRoleUsers(ctx context.Context, client *camunda.ClientWithResponses
 		var page struct {
 			Items []camunda.RoleUserResult `json:"items"`
 			Page  struct {
-				EndCursor        *string `json:"endCursor"`
+				EndCursor         *string `json:"endCursor"`
 				HasMoreTotalItems bool    `json:"hasMoreTotalItems"`
 			} `json:"page"`
 		}
@@ -172,7 +172,7 @@ func searchAllRoleUsers(ctx context.Context, client *camunda.ClientWithResponses
 		}
 
 		for _, u := range page.Items {
-			if string(u.Username) == username {
+			if u.Username == username {
 				return true, nil
 			}
 		}

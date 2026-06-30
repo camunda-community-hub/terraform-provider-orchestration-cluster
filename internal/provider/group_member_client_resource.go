@@ -163,7 +163,7 @@ func searchAllGroupClients(ctx context.Context, client *camunda.ClientWithRespon
 		var page struct {
 			Items []camunda.GroupClientResult `json:"items"`
 			Page  struct {
-				EndCursor        *string `json:"endCursor"`
+				EndCursor         *string `json:"endCursor"`
 				HasMoreTotalItems bool    `json:"hasMoreTotalItems"`
 			} `json:"page"`
 		}

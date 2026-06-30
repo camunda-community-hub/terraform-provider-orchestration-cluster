@@ -163,7 +163,7 @@ func searchAllRoleGroups(ctx context.Context, client *camunda.ClientWithResponse
 		var page struct {
 			Items []camunda.RoleGroupResult `json:"items"`
 			Page  struct {
-				EndCursor        *string `json:"endCursor"`
+				EndCursor         *string `json:"endCursor"`
 				HasMoreTotalItems bool    `json:"hasMoreTotalItems"`
 			} `json:"page"`
 		}
