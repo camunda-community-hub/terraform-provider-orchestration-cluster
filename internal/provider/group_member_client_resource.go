@@ -141,13 +141,16 @@ func searchAllGroupClients(ctx context.Context, client *camunda.ClientWithRespon
 	var cursor string
 	for {
 		body := camunda.SearchClientsForGroupJSONRequestBody{}
+		pageSize := int32(100)
+		cursorPage := camunda.CursorForwardPagination{Limit: &pageSize}
 		if cursor != "" {
-			page := camunda.SearchQueryPageRequest{}
-			if err := page.FromCursorForwardPagination(camunda.CursorForwardPagination{After: cursor}); err != nil {
-				return false, fmt.Errorf("encoding cursor: %w", err)
-			}
-			body.Page = &page
+			cursorPage.After = cursor
 		}
+		sqpr := camunda.SearchQueryPageRequest{}
+		if err := sqpr.FromCursorForwardPagination(cursorPage); err != nil {
+			return false, fmt.Errorf("encoding cursor: %w", err)
+		}
+		body.Page = &sqpr
 
 		searchResp, err := client.SearchClientsForGroupWithResponse(ctx, groupId, body)
 		if err != nil {
@@ -177,7 +180,7 @@ func searchAllGroupClients(ctx context.Context, client *camunda.ClientWithRespon
 			}
 		}
 
-		if !page.Page.HasMoreTotalItems || page.Page.EndCursor == nil {
+		if page.Page.EndCursor == nil || *page.Page.EndCursor == "" {
 			break
 		}
 		cursor = *page.Page.EndCursor
