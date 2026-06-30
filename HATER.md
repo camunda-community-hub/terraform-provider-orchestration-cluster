@@ -2,74 +2,31 @@
 
 ## Verdict: PASS
 
-Build is clean, `go vet` is clean, every resource has a Delete, every Read removes
-state on 404, every assignment Read actually interrogates the engine, every test
-hits the real cluster API in its CheckFunc, and the authorization key is stored as
-a string. I went in expecting a dumpster fire and found something annoyingly close
-to competent. It still has problems — but none of them rise to a blocker.
+The build is clean, `go vet` is silent, and every one of the eight resources and two data sources is wired up in `provider.go` with a matching file and a matching acceptance test that calls the live engine API. I went looking for orphan-creating Deletes, missing 404 handling, fake "Read" stubs that never touch the engine, and int64 IDs masquerading as keys. I found none of those. Annoying. The assignment Reads genuinely decode the engine search results and `RemoveResource` when the membership is gone. The authorization key is stored as a string, as it should be. Credit where it's grudgingly due.
+
+What follows is what stops this from being spotless.
 
 ## Blockers
-
-None. I checked. Twice. I'm as surprised as you are.
+None. I checked twice.
 
 ## Majors
 
-- group_resource.go:84-88, role_resource.go:90-94 — The resource uses the human-facing
-  `name` as the engine `groupId`/`roleId` (`GroupId: data.Name.ValueString()`). Display
-  names are not identifiers. Camunda Identity IDs have a restricted character set;
-  the moment someone writes `name = "Test Group 1"` (which your own test
-  group_resource_test.go:24 does), you are shoving a string with spaces into an ID field.
-  Either the engine rejects it (runtime failure the schema gave no warning about) or it
-  silently accepts a garbage ID you can never type by hand again. There should be a
-  separate, immutable `group_id`/`role_id` attribute (RequiresReplace), with `name`
-  remaining the mutable display field — mirror how the membership resources already
-  separate `group_id` from the member. Fix before this ships, or document loudly that
-  `name` doubles as the ID and must be ID-shaped.
+- `authorization_resource_test.go:48`, `group_resource_test.go:66`, `role_resource_test.go:79`, `group_member_user_resource_test.go:51`, `group_member_client_resource_test.go:44`, `role_member_user_resource_test.go:51`, `role_member_client_resource_test.go:45`, `role_member_group_resource_test.go:48` — Every engine-verification `CheckFunc` hardcodes `"http://localhost:8080/v2"` instead of deriving it from the `providerConfig` constant in `provider_test.go:19`. The URL now lives in nine places. Change the cluster endpoint once and you will be playing whack-a-mole, with the provider config and the checks silently disagreeing. Hoist the URL into one exported test constant (e.g. `const testClusterURL = "http://localhost:8080/v2"`), build `providerConfig` from it, and have every check call `camunda.NewClientWithResponses(testClusterURL)`.
 
 ## Minors
 
-- authorization_resource.go:170, group_resource.go:101-102, role_resource.go:111-117 —
-  `apiResp.JSON201.X` is dereferenced after only checking `StatusCode() == 201`. The
-  generated parser (client.gen.go:37187) only populates `JSON201` when the status is 201
-  AND `Content-Type` contains "json". A 201 with an empty or non-JSON body leaves
-  `JSON201 == nil` and you panic. In practice the 8.9 create endpoints always return a
-  JSON body so this won't fire today, but it's a free nil-check you skipped. The same
-  laziness sits in every `JSON200`/`JSON201` access. Add a `if apiResp.JSONxxx == nil`
-  guard, or stop pretending HTTP responses are trustworthy.
+- `group_resource.go:84` / `role_resource.go:90` — `groupId`/`roleId` is set to the human display `name` verbatim (`data.Name.ValueString()`). The Camunda Identity API constrains these IDs to a restricted character set (no spaces). The test configs (`"Test Group 1"`, `"Test Role 1"`) only pass if the engine is lenient; the moment it enforces the documented pattern, both create calls 400. Conflating "display name" with "stable ID" is a design smell regardless — a rename should not require destroy/recreate. Consider a distinct, validated `group_id`/`role_id` attribute separate from `name`.
 
-- All eight `*_test.go` CheckFuncs hardcode `"http://localhost:8080/v2"` instead of
-  deriving it from the `providerConfig` constant in provider_test.go:21. Now the URL
-  lives in nine places. Change the port once and you'll be hunting for the nine you
-  forgot. Hoist it into a shared `const testClusterURL` and reference it everywhere,
-  including inside `providerConfig`.
+- `authorization_resource.go:107-157` and `:221-277` — The `if len(resourceIds) > 0 { ... } else { ... }` branches in Create and Update are near-identical, differing only in `ResourceId: resourceIds[0]` vs `ResourceId: "*"`. Collapse to one block that picks the id up front (`resourceId := "*"; if len(resourceIds) > 0 { resourceId = resourceIds[0] }`). Four near-duplicate blocks is four places to drift.
 
-- group_resource_test.go:56, role_resource_test.go:61 — `testAccGroupResourceConfig`
-  and `testAccRoleResourceConfig` take a `groupId`/`roleId` parameter that is never
-  used (`groupId string` then ignored). Dead parameter. Delete it or use it.
+- `authorization_resource.go:38` — `resource_ids` is a `types.Set` but only `resourceIds[0]` is ever sent (`:138`, `:258`). A user supplying two resource IDs gets one silently honored and the rest discarded. Either enforce a single value in the schema or actually fan out across all of them. Lying about cardinality is worse than restricting it.
 
-- group_member_user_resource.go:104 (and the four sibling assignment resources) —
-  the composite ID is built with naive string concatenation `group_id + "/" + user_id`.
-  No `ImportState` is implemented for any assignment resource, so this ID is never
-  parsed back, which is why you got away with it — but it also means these resources
-  cannot be imported at all. If import is out of scope, fine; if it isn't, that's a
-  gap. Either way the `/`-delimited scheme breaks the instant an ID legitimately
-  contains a slash.
+- `authorization_resource.go:170`, `group_resource.go:101`, `role_resource.go:111` — `apiResp.JSON201.X` is dereferenced after only checking `StatusCode() == 201`. The generated parser populates `JSON201` only on a 201 with a JSON content type; a 201 with an empty/non-JSON body would nil-panic. The 8.9 create endpoints always return a JSON body, so this does not fire today, but it is a free nil-guard that was skipped across every `JSON200`/`JSON201` access.
 
-- Provider config comment block (provider_test.go:15-23) still references "HashiCups"
-  and "HASHICUPS_ environment variables" — leftover scaffolding from the tutorial you
-  copied. Scrub it. Comments that lie about the system are worse than no comments.
+- `provider_test.go:14-23` and the stale commented-out `testAccProtoV6ProviderFactoriesWithEcho` block (`:37-40`) — Scaffolding cruft. The `providerConfig` doc comment still references "HashiCups" and "HASHICUPS_ environment variables", copy-pasted from the tutorial template. Also `provider.go:121` leaves a commented `// if data.Endpoint.IsNull() { ... }` line. Scrub all of it.
 
-- The `Update` method on every assignment resource is an empty body with a comment.
-  Correct, given everything is RequiresReplace — but an empty Update that silently
-  does nothing is a trap for the next person. A one-line `tflog.Trace` or even leaving
-  it truly unreachable would be clearer. Nitpick-adjacent; I'll allow it.
+- Assignment resources have no `tflog.Trace` on create/delete, unlike `group_resource.go:104` and `role_resource.go:119`. Inconsistent — when one of these silently no-ops in the field you will wish you had the trace line.
 
 ## Closing Remarks
 
-Fine. It's... fine. The eight resources are near-identical copies of a sound template,
-the assignment Reads do real membership checks instead of the usual "trust the state
-and pray," and the tests don't lie to themselves by asserting Terraform state against
-Terraform state. The `name`-as-ID conflation is the one thing that'll bite a real user,
-and the nil-deref is the one thing that'll bite you at 3am when the engine returns an
-empty 201. Fix those two and stop copy-pasting HashiCups boilerplate into your comments.
-I dislike how little I have to complain about.
+It pains me to write PASS. The structure is repetitive in the way generated-but-not-quite code always is, and the test suite hardcodes the same URL nine times like nobody expects the endpoint to ever move. But the things that actually cause data loss and silent drift — missing Deletes, Reads that never check the engine, swallowed 404s, int64 keys masquerading as IDs — are all handled correctly and uniformly across every resource. Fix the URL duplication before it grows a tenth copy, decide whether `name` is really your primary key, and stop shipping the tutorial's HashiCups comments. Then it's fine. ...Fine.
