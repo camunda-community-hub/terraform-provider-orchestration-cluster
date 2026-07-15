@@ -1,0 +1,5 @@
+{
+  "extends": ["config:recommended"],
+  // Automerge dependency updates if the CI is passing
+  "automerge": true,
+}
