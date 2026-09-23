@@ -260,7 +260,7 @@ func (r *TenantResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	if apiResp.StatusCode() != http.StatusNoContent {
+	if apiResp.StatusCode() != http.StatusNoContent && apiResp.StatusCode() != http.StatusNotFound {
 		resp.Diagnostics.AddError("Not Deleted", fmt.Sprintf("Error while deleting tenant, got HTTP error: %d", apiResp.StatusCode()))
 		return
 	}
