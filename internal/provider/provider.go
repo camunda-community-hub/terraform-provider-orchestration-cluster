@@ -210,6 +210,7 @@ func getAuthToken(loginUrl, audience, clientID, clientSecret string) (string, er
 func (p *CamundaClusterProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewExampleResource,
+		NewGroupResource,
 		NewUserResource,
 	}
 }
