@@ -305,7 +305,7 @@ func readTenantWithRetry(ctx context.Context, client *camunda.ClientWithResponse
 		// Don't wait too long for the first poll
 		Delay:      1 * time.Second,
 		MinTimeout: 2 * time.Second,
-		// Wait at most this duration before consideing the tenant has not been found
+		// Wait at most this duration before considering the tenant has not been found
 		Timeout: 30 * time.Second,
 	}
 
