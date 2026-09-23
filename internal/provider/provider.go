@@ -211,6 +211,9 @@ func (p *CamundaClusterProvider) Resources(ctx context.Context) []func() resourc
 	return []func() resource.Resource{
 		NewExampleResource,
 		NewUserResource,
+		NewClientGroupAssignmentResource,
+		NewClientRoleAssignmentResource,
+		NewClientTenantAssignmentResource,
 	}
 }
 
