@@ -181,9 +181,19 @@ func (r *TenantResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	apiResp, err := readTenantWithRetry(ctx, r.client, data.TenantId.ValueString())
+	apiResp, err := r.client.GetTenantWithResponse(ctx, data.TenantId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read tenant '%s', got error: %s", data.TenantId.ValueString(), err))
+		return
+	}
+
+	if apiResp.StatusCode() == http.StatusNotFound {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	if apiResp.StatusCode() != http.StatusOK {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read tenant '%s', got HTTP error: %d: %s", data.TenantId.ValueString(), apiResp.StatusCode(), apiResp.Body))
 		return
 	}
 
