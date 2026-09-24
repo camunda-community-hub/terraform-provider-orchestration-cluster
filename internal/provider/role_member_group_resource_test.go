@@ -55,25 +55,32 @@ func checkRoleGroupAssignmentExistsInEngine() resource.TestCheckFunc {
 			}
 			rid := rs.Primary.Attributes["role_id"]
 			gid := rs.Primary.Attributes["group_id"]
-			searchResp, err := client.SearchGroupsForRoleWithResponse(context.Background(), rid, camunda.SearchGroupsForRoleJSONRequestBody{})
-			if err != nil {
-				return fmt.Errorf("engine API call failed: %w", err)
-			}
-			if searchResp.StatusCode() != 200 {
-				return fmt.Errorf("search groups for role %s failed (HTTP %d)", rid, searchResp.StatusCode())
-			}
-			var rawResult struct {
-				Items []camunda.RoleGroupResult `json:"items"`
-			}
-			if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
-				return fmt.Errorf("decode failed: %w", err)
-			}
-			for _, g := range rawResult.Items {
-				if g.GroupId == gid {
-					return nil
+
+			_, err := waitForConsistency(context.Background(), fmt.Sprintf("group %q in role %q in engine", gid, rid), func() (bool, bool, error) {
+				searchResp, err := client.SearchGroupsForRoleWithResponse(context.Background(), rid, camunda.SearchGroupsForRoleJSONRequestBody{})
+				if err != nil {
+					return false, false, err
 				}
+				if searchResp.StatusCode() != 200 {
+					return false, false, nil
+				}
+				var rawResult struct {
+					Items []camunda.RoleGroupResult `json:"items"`
+				}
+				if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
+					return false, false, fmt.Errorf("decode failed: %w", err)
+				}
+				for _, g := range rawResult.Items {
+					if g.GroupId == gid {
+						return true, true, nil
+					}
+				}
+				return false, false, nil
+			})
+			if err != nil {
+				return fmt.Errorf("group %s not found in role %s in engine: %w", gid, rid, err)
 			}
-			return fmt.Errorf("group %s not found in role %s in engine", gid, rid)
+			return nil
 		}
 		return fmt.Errorf("role_member_group resource not found in Terraform state")
 	}

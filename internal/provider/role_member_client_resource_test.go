@@ -51,25 +51,32 @@ func checkRoleClientAssignmentExistsInEngine() resource.TestCheckFunc {
 			}
 			rid := rs.Primary.Attributes["role_id"]
 			cid := rs.Primary.Attributes["client_id"]
-			searchResp, err := client.SearchClientsForRoleWithResponse(context.Background(), rid, camunda.SearchClientsForRoleJSONRequestBody{})
-			if err != nil {
-				return fmt.Errorf("engine API call failed: %w", err)
-			}
-			if searchResp.StatusCode() != 200 {
-				return fmt.Errorf("search clients for role %s failed (HTTP %d)", rid, searchResp.StatusCode())
-			}
-			var rawResult struct {
-				Items []camunda.RoleClientResult `json:"items"`
-			}
-			if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
-				return fmt.Errorf("decode failed: %w", err)
-			}
-			for _, c := range rawResult.Items {
-				if c.ClientId == cid {
-					return nil
+
+			_, err := waitForConsistency(context.Background(), fmt.Sprintf("client %q in role %q in engine", cid, rid), func() (bool, bool, error) {
+				searchResp, err := client.SearchClientsForRoleWithResponse(context.Background(), rid, camunda.SearchClientsForRoleJSONRequestBody{})
+				if err != nil {
+					return false, false, err
 				}
+				if searchResp.StatusCode() != 200 {
+					return false, false, nil
+				}
+				var rawResult struct {
+					Items []camunda.RoleClientResult `json:"items"`
+				}
+				if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
+					return false, false, fmt.Errorf("decode failed: %w", err)
+				}
+				for _, c := range rawResult.Items {
+					if c.ClientId == cid {
+						return true, true, nil
+					}
+				}
+				return false, false, nil
+			})
+			if err != nil {
+				return fmt.Errorf("client %s not found in role %s in engine: %w", cid, rid, err)
 			}
-			return fmt.Errorf("client %s not found in role %s in engine", cid, rid)
+			return nil
 		}
 		return fmt.Errorf("role_member_client resource not found in Terraform state")
 	}
