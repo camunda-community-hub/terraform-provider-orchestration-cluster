@@ -21,7 +21,7 @@ func TestAccGroupResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + testAccGroupResourceConfig("Test Group 1"),
+				Config: providerConfig + testAccGroupResourceConfig("test-group-1", "Test Group 1"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_group.test",
@@ -39,7 +39,7 @@ func TestAccGroupResource(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + testAccGroupResourceConfig("Test Group 2"),
+				Config: providerConfig + testAccGroupResourceConfig("test-group-1", "Test Group 2"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_group.test",
@@ -53,12 +53,13 @@ func TestAccGroupResource(t *testing.T) {
 	})
 }
 
-func testAccGroupResourceConfig(name string) string {
+func testAccGroupResourceConfig(groupId, name string) string {
 	return fmt.Sprintf(`
 resource "camundacluster_group" "test" {
-  name = %q
+  group_id = %q
+  name     = %q
 }
-`, name)
+`, groupId, name)
 }
 
 func checkGroupExistsInEngine(groupName string) resource.TestCheckFunc {

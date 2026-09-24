@@ -28,8 +28,9 @@ type GroupResource struct {
 }
 
 type GroupResourceModel struct {
-	Id   types.String `tfsdk:"id"`
-	Name types.String `tfsdk:"name"`
+	Id      types.String `tfsdk:"id"`
+	GroupId types.String `tfsdk:"group_id"`
+	Name    types.String `tfsdk:"name"`
 }
 
 func (r *GroupResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -42,10 +43,17 @@ func (r *GroupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "The unique ID of the group.",
+				MarkdownDescription: "The unique ID of the group (the group ID).",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"group_id": schema.StringAttribute{
+				MarkdownDescription: "The unique ID for the group.",
+				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"name": schema.StringAttribute{
@@ -81,9 +89,8 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	groupId := data.Name.ValueString()
 	request := camunda.CreateGroupJSONRequestBody{
-		GroupId: groupId,
+		GroupId: data.GroupId.ValueString(),
 		Name:    data.Name.ValueString(),
 	}
 
@@ -104,6 +111,7 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	data.Id = types.StringValue(apiResp.JSON201.GroupId)
+	data.GroupId = types.StringValue(apiResp.JSON201.GroupId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
 
 	tflog.Trace(ctx, "created group resource")
@@ -119,9 +127,9 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	apiResp, err := r.client.GetGroupWithResponse(ctx, data.Id.ValueString())
+	apiResp, err := r.client.GetGroupWithResponse(ctx, data.GroupId.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read group '%s', got error: %s", data.Id.ValueString(), err))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read group '%s', got error: %s", data.GroupId.ValueString(), err))
 		return
 	}
 
@@ -141,6 +149,7 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	data.Id = types.StringValue(apiResp.JSON200.GroupId)
+	data.GroupId = types.StringValue(apiResp.JSON200.GroupId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -164,7 +173,7 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		Name: data.Name.ValueString(),
 	}
 
-	apiResp, err := r.client.UpdateGroupWithResponse(ctx, state.Id.ValueString(), request)
+	apiResp, err := r.client.UpdateGroupWithResponse(ctx, state.GroupId.ValueString(), request)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update group, got error: %s", err))
 		return
@@ -181,6 +190,7 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	}
 
 	data.Id = types.StringValue(apiResp.JSON200.GroupId)
+	data.GroupId = types.StringValue(apiResp.JSON200.GroupId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -194,7 +204,7 @@ func (r *GroupResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		return
 	}
 
-	apiResp, err := r.client.DeleteGroupWithResponse(ctx, data.Id.ValueString())
+	apiResp, err := r.client.DeleteGroupWithResponse(ctx, data.GroupId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete group, got error: %s", err))
 		return
@@ -207,5 +217,5 @@ func (r *GroupResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 func (r *GroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("group_id"), req, resp)
 }
