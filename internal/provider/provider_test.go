@@ -1,14 +1,11 @@
 package provider
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 )
 
 const (
@@ -46,19 +43,17 @@ func testAccPreCheck(t *testing.T) {
 
 	// This endpoint doesn't require authentication
 	statusEndpoint := "http://localhost:8080/v2/status"
-	const expectedStatusCode = http.StatusNoContent
 
-	err := retry.RetryContext(t.Context(), 30*time.Second, func() *retry.RetryError {
+	_, err := waitForConsistency(t.Context(), "camunda cluster status endpoint", func() (int, bool, error) {
 		resp, err := http.Get(statusEndpoint)
 		if err != nil {
-			return retry.RetryableError(fmt.Errorf("unable to query %s: %w", statusEndpoint, err))
+			// The cluster may not be reachable yet at all at this point in a
+			// test run; treat that the same as a not-yet-ready status rather
+			// than a hard error.
+			return 0, false, nil
 		}
-
-		got := resp.StatusCode
-		if got == expectedStatusCode {
-			return nil
-		}
-		return retry.RetryableError(fmt.Errorf("expected HTTP %d, got %d", expectedStatusCode, got))
+		defer resp.Body.Close()
+		return resp.StatusCode, resp.StatusCode == http.StatusNoContent, nil
 	})
 
 	if err != nil {
