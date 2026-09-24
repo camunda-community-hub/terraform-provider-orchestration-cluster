@@ -51,25 +51,32 @@ func checkGroupClientAssignmentExistsInEngine() resource.TestCheckFunc {
 			}
 			gid := rs.Primary.Attributes["group_id"]
 			cid := rs.Primary.Attributes["client_id"]
-			searchResp, err := client.SearchClientsForGroupWithResponse(context.Background(), gid, camunda.SearchClientsForGroupJSONRequestBody{})
-			if err != nil {
-				return fmt.Errorf("engine API call failed: %w", err)
-			}
-			if searchResp.StatusCode() != 200 {
-				return fmt.Errorf("search clients for group %s failed (HTTP %d)", gid, searchResp.StatusCode())
-			}
-			var rawResult struct {
-				Items []camunda.GroupClientResult `json:"items"`
-			}
-			if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
-				return fmt.Errorf("decode failed: %w", err)
-			}
-			for _, c := range rawResult.Items {
-				if c.ClientId == cid {
-					return nil
+
+			_, err := waitForConsistency(context.Background(), fmt.Sprintf("client %q in group %q in engine", cid, gid), func() (bool, bool, error) {
+				searchResp, err := client.SearchClientsForGroupWithResponse(context.Background(), gid, camunda.SearchClientsForGroupJSONRequestBody{})
+				if err != nil {
+					return false, false, err
 				}
+				if searchResp.StatusCode() != 200 {
+					return false, false, nil
+				}
+				var rawResult struct {
+					Items []camunda.GroupClientResult `json:"items"`
+				}
+				if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
+					return false, false, fmt.Errorf("decode failed: %w", err)
+				}
+				for _, c := range rawResult.Items {
+					if c.ClientId == cid {
+						return true, true, nil
+					}
+				}
+				return false, false, nil
+			})
+			if err != nil {
+				return fmt.Errorf("client %s not found in group %s in engine: %w", cid, gid, err)
 			}
-			return fmt.Errorf("client %s not found in group %s in engine", cid, gid)
+			return nil
 		}
 		return fmt.Errorf("group_member_client resource not found in Terraform state")
 	}

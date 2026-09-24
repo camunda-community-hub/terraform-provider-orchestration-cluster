@@ -58,25 +58,32 @@ func checkGroupUserAssignmentExistsInEngine(groupId, userId string) resource.Tes
 			}
 			gid := rs.Primary.Attributes["group_id"]
 			uid := rs.Primary.Attributes["user_id"]
-			searchResp, err := client.SearchUsersForGroupWithResponse(context.Background(), gid, camunda.SearchUsersForGroupJSONRequestBody{})
-			if err != nil {
-				return fmt.Errorf("engine API call failed: %w", err)
-			}
-			if searchResp.StatusCode() != 200 {
-				return fmt.Errorf("search users for group %s failed (HTTP %d)", gid, searchResp.StatusCode())
-			}
-			var rawResult struct {
-				Items []camunda.GroupUserResult `json:"items"`
-			}
-			if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
-				return fmt.Errorf("decode failed: %w", err)
-			}
-			for _, u := range rawResult.Items {
-				if u.Username == uid {
-					return nil
+
+			_, err := waitForConsistency(context.Background(), fmt.Sprintf("user %q in group %q in engine", uid, gid), func() (bool, bool, error) {
+				searchResp, err := client.SearchUsersForGroupWithResponse(context.Background(), gid, camunda.SearchUsersForGroupJSONRequestBody{})
+				if err != nil {
+					return false, false, err
 				}
+				if searchResp.StatusCode() != 200 {
+					return false, false, nil
+				}
+				var rawResult struct {
+					Items []camunda.GroupUserResult `json:"items"`
+				}
+				if err := json.Unmarshal(searchResp.Body, &rawResult); err != nil {
+					return false, false, fmt.Errorf("decode failed: %w", err)
+				}
+				for _, u := range rawResult.Items {
+					if u.Username == uid {
+						return true, true, nil
+					}
+				}
+				return false, false, nil
+			})
+			if err != nil {
+				return fmt.Errorf("user %s not found in group %s in engine: %w", uid, gid, err)
 			}
-			return fmt.Errorf("user %s not found in group %s in engine", uid, gid)
+			return nil
 		}
 		return fmt.Errorf("group_member_user resource not found in Terraform state")
 	}
