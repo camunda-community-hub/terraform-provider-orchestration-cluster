@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -13,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
@@ -229,49 +227,15 @@ func (r *UserResource) ImportState(ctx context.Context, req resource.ImportState
 	resource.ImportStatePassthroughID(ctx, path.Root("username"), req, resp)
 }
 
-// readUserWithRetry handles the eventual consistency of fetching a user by retrying a few times.
+// readUserWithRetry handles the eventual consistency of fetching a user by retrying a few times:
+// if a user was just created, it may not be immediately available through the API.
 func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses, username string) (*camunda.GetUserResponse, error) {
-	// Reading a user is eventually consistent: if a user is just created, it may not be immediately available through the API.
-	// Handle the eventual consistency by retrying a few times with some delay in between until the user is found or we timeout.
-	createState := &retry.StateChangeConf{
-		Pending: []string{
-			fmt.Sprintf("%d", http.StatusNotFound),
-		},
+	return waitForConsistency(ctx, fmt.Sprintf("user %q", username), func() (*camunda.GetUserResponse, bool, error) {
+		readResp, err := client.GetUserWithResponse(ctx, username)
+		if err != nil {
+			return nil, false, err
+		}
 
-		Target: []string{
-			fmt.Sprintf("%d", http.StatusOK),
-		},
-
-		// How many times the target state has to be reached to continue.
-		ContinuousTargetOccurence: 1,
-
-		Refresh: func() (any, string, error) {
-			readResp, err := client.GetUserWithResponse(ctx, username)
-
-			if err != nil {
-				return nil, "", err
-			}
-
-			return readResp, fmt.Sprintf("%d", readResp.StatusCode()), nil
-		},
-
-		// Don't wait too long for the first poll
-		Delay:      1 * time.Second,
-		MinTimeout: 2 * time.Second,
-		// Wait at most this duration before consideing the user has not been found
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := createState.WaitForStateContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("timed out while waiting for user '%s' to be created: %w", username, err)
-	}
-
-	r, ok := resp.(*camunda.GetUserResponse)
-	if !ok {
-		// This should not happen
-		return nil, fmt.Errorf("unexpected type for user read response: %T", resp)
-	}
-
-	return r, nil
+		return readResp, readResp.StatusCode() == http.StatusOK, nil
+	})
 }
