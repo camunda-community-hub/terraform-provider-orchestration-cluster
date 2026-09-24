@@ -1,7 +1,9 @@
 package provider
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -34,16 +36,16 @@ func (d *GroupDataSource) Metadata(ctx context.Context, req datasource.MetadataR
 
 func (d *GroupDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A Camunda cluster group",
+		MarkdownDescription: "Looks up a Camunda cluster group by name.",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The unique ID of the group.",
-				Required:            true,
+				Computed:            true,
 			},
 			"name": schema.StringAttribute{
-				MarkdownDescription: "The display name of the group.",
-				Computed:            true,
+				MarkdownDescription: "The display name of the group to look up. Must match exactly one group.",
+				Required:            true,
 			},
 		},
 	}
@@ -66,6 +68,26 @@ func (d *GroupDataSource) Configure(ctx context.Context, req datasource.Configur
 	d.client = client
 }
 
+// groupSearchByNameRequest is sent as a raw JSON body to POST /groups/search instead of via the
+// generated SearchGroupsJSONRequestBody. The OpenAPI spec defines that request as an allOf of the
+// generic SearchQueryRequest plus sibling `filter`/`sort` properties, but the generator collapses
+// such allOf-with-siblings schemas into a bare alias of the base type, silently dropping `filter`
+// (see GroupFilter, which is generated but never referenced). Building the body by hand is the
+// only way to actually filter server-side with the current generated client.
+type groupSearchByNameRequest struct {
+	Filter struct {
+		Name string `json:"name"`
+	} `json:"filter"`
+}
+
+// groupSearchQueryResult mirrors the actual /groups/search response shape. For the same reason
+// as groupSearchByNameRequest above, the generated GroupSearchQueryResult type only carries
+// pagination info and drops the `items` array, so SearchGroupsResponse.JSON200 can never report
+// any results. SearchGroupsResponse.Body still holds the raw bytes, which this type decodes.
+type groupSearchQueryResult struct {
+	Items []camunda.GroupResult `json:"items"`
+}
+
 func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var data GroupDataSourceModel
 
@@ -74,24 +96,48 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	apiResp, err := d.client.GetGroupWithResponse(ctx, data.Id.ValueString())
+	name := data.Name.ValueString()
+
+	filterReq := groupSearchByNameRequest{}
+	filterReq.Filter.Name = name
+
+	bodyBytes, err := json.Marshal(filterReq)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read group '%s', got error: %s", data.Id.ValueString(), err))
+		resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode group search request: %s", err))
+		return
+	}
+
+	apiResp, err := d.client.SearchGroupsWithBodyWithResponse(ctx, "application/json", bytes.NewReader(bodyBytes))
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to search for group '%s', got error: %s", name, err))
 		return
 	}
 
 	if apiResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("Error while reading group, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
+		resp.Diagnostics.AddError("Search Error", fmt.Sprintf("Error while searching for group '%s', got HTTP error: %d: %s", name, apiResp.StatusCode(), apiResp.Body))
 		return
 	}
 
-	if apiResp.JSON200 == nil {
-		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
+	var result groupSearchQueryResult
+	if err := json.Unmarshal(apiResp.Body, &result); err != nil {
+		resp.Diagnostics.AddError("Invalid Response", fmt.Sprintf("Unable to parse group search response: %s", err))
 		return
 	}
 
-	data.Id = types.StringValue(apiResp.JSON200.GroupId)
-	data.Name = types.StringValue(apiResp.JSON200.Name)
+	switch len(result.Items) {
+	case 0:
+		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("No group found with name '%s'.", name))
+		return
+	case 1:
+		// exactly one match
+	default:
+		resp.Diagnostics.AddError("Ambiguous Lookup", fmt.Sprintf("Name '%s' matched %d groups; group names are not guaranteed unique.", name, len(result.Items)))
+		return
+	}
+
+	match := result.Items[0]
+	data.Id = types.StringValue(match.GroupId)
+	data.Name = types.StringValue(match.Name)
 
 	tflog.Trace(ctx, "read group data source")
 
