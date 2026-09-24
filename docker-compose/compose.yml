@@ -1,6 +1,6 @@
 services:
   camunda-data-init:
-    image: camunda/camunda:${CAMUNDA_VERSION:-8.9.2}
+    image: camunda/camunda:${CAMUNDA_VERSION:-8.9.21}
     user: "0:0"
     entrypoint: ["/bin/sh", "-c", "chown -R 1001:1001 /usr/local/camunda/camunda-data && chmod 775 /usr/local/camunda/camunda-data"]
     volumes:
@@ -8,7 +8,7 @@ services:
     restart: "no"
 
   orchestration:
-    image: camunda/camunda:${CAMUNDA_VERSION:-8.9.2}
+    image: camunda/camunda:${CAMUNDA_VERSION:-8.9.21}
     container_name: orchestration
     ports:
       - "26500:26500"
