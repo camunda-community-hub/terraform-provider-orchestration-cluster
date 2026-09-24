@@ -102,6 +102,22 @@ func (r *RoleMemberGroupResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
+	_, err = waitForConsistency(ctx, fmt.Sprintf("role %q group %q assignment", data.RoleId.ValueString(), data.GroupId.ValueString()), func() (bool, bool, error) {
+		found, err := searchAllRoleGroups(ctx, r.client, data.RoleId.ValueString(), data.GroupId.ValueString())
+		if err != nil {
+			if err.Error() == "not_found" {
+				// the role itself isn't found yet either — treat as pending, same reasoning
+				return false, false, nil
+			}
+			return false, false, err
+		}
+		return found, found, nil
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm group was assigned to role, got error: %s", err))
+		return
+	}
+
 	data.Id = types.StringValue(data.RoleId.ValueString() + "/" + data.GroupId.ValueString())
 
 	tflog.Trace(ctx, "created role member group resource")
