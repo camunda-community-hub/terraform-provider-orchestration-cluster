@@ -61,6 +61,21 @@ func unassignGroupMemberClientOutOfBand(groupId, clientId string) func() {
 		if _, err := client.UnassignClientFromGroupWithResponse(context.Background(), groupId, clientId); err != nil {
 			panic(err)
 		}
+
+		// The unassignment itself is strongly consistent, but the search index used by
+		// Read to verify membership lags behind it, same as everywhere else in this
+		// provider. Wait for the removal to actually be visible before letting
+		// Terraform's own refresh run, or it can still see the (about-to-be-gone)
+		// membership and report an empty plan instead of detecting the drift.
+		if _, err := waitForConsistency(context.Background(), fmt.Sprintf("group %q client %q unassignment", groupId, clientId), func() (bool, bool, error) {
+			found, err := searchAllGroupClients(context.Background(), client, groupId, clientId)
+			if err != nil {
+				return false, false, err
+			}
+			return !found, !found, nil
+		}); err != nil {
+			panic(err)
+		}
 	}
 }
 

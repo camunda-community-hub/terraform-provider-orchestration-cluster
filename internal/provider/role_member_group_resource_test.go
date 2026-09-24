@@ -61,6 +61,21 @@ func unassignRoleMemberGroupOutOfBand(roleId, groupId string) func() {
 		if _, err := client.UnassignRoleFromGroupWithResponse(context.Background(), roleId, groupId); err != nil {
 			panic(err)
 		}
+
+		// The unassignment itself is strongly consistent, but the search index used by
+		// Read to verify membership lags behind it, same as everywhere else in this
+		// provider. Wait for the removal to actually be visible before letting
+		// Terraform's own refresh run, or it can still see the (about-to-be-gone)
+		// membership and report an empty plan instead of detecting the drift.
+		if _, err := waitForConsistency(context.Background(), fmt.Sprintf("role %q group %q unassignment", roleId, groupId), func() (bool, bool, error) {
+			found, err := searchAllRoleGroups(context.Background(), client, roleId, groupId)
+			if err != nil {
+				return false, false, err
+			}
+			return !found, !found, nil
+		}); err != nil {
+			panic(err)
+		}
 	}
 }
 
