@@ -117,6 +117,13 @@ func TestMutuallyExclusiveStringValidator_ValidateString(t *testing.T) {
 			wantErr:              false,
 		},
 		{
+			// mutuallyExclusiveStringValidator itself still treats an empty sibling as
+			// "not set" for exclusivity purposes, so it does not reject this on its own; the
+			// schema now also applies nonEmptyStringValidator to both attributes, which
+			// independently rejects an explicitly configured empty string (see
+			// TestNonEmptyStringValidator_RejectsEmptyScopeAttributes below). An empty string
+			// is therefore no longer a valid overall configuration, even though this
+			// validator alone still allows it.
 			name:                 "resource_property_name empty string, resource_id set",
 			resourceId:           strPtr("my-process"),
 			resourcePropertyName: strPtr(""),
@@ -152,6 +159,48 @@ func TestMutuallyExclusiveStringValidator_ValidateString(t *testing.T) {
 			resp := &validator.StringResponse{}
 
 			mutuallyExclusiveStringValidator{otherAttribute: otherPath}.ValidateString(context.Background(), req, resp)
+
+			gotErr := resp.Diagnostics.HasError()
+			if gotErr != tt.wantErr {
+				t.Fatalf("got error = %v, want error = %v (diagnostics: %v)", gotErr, tt.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+// TestNonEmptyStringValidator_RejectsEmptyScopeAttributes verifies that resource_id and
+// resource_property_name reject an explicitly configured empty string via
+// nonEmptyStringValidator (defined in tenant_resource.go and reused here), independently of
+// mutuallyExclusiveStringValidator: an empty scope value used to be silently treated as
+// "not configured" by resolveAuthorizationRequestVariant, defaulting resource_id to "*" and
+// producing a persistent diff against the user's explicitly configured "". It must now be
+// rejected outright, while null (omitted) and unknown values still pass.
+func TestNonEmptyStringValidator_RejectsEmptyScopeAttributes(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    path.Path
+		value   types.String
+		wantErr bool
+	}{
+		{name: "resource_id empty string", path: path.Root("resource_id"), value: types.StringValue(""), wantErr: true},
+		{name: "resource_id null", path: path.Root("resource_id"), value: types.StringNull(), wantErr: false},
+		{name: "resource_id unknown", path: path.Root("resource_id"), value: types.StringUnknown(), wantErr: false},
+		{name: "resource_id non-empty", path: path.Root("resource_id"), value: types.StringValue("my-process"), wantErr: false},
+		{name: "resource_property_name empty string", path: path.Root("resource_property_name"), value: types.StringValue(""), wantErr: true},
+		{name: "resource_property_name null", path: path.Root("resource_property_name"), value: types.StringNull(), wantErr: false},
+		{name: "resource_property_name unknown", path: path.Root("resource_property_name"), value: types.StringUnknown(), wantErr: false},
+		{name: "resource_property_name non-empty", path: path.Root("resource_property_name"), value: types.StringValue("myProperty"), wantErr: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := validator.StringRequest{
+				Path:        tt.path,
+				ConfigValue: tt.value,
+			}
+			resp := &validator.StringResponse{}
+
+			nonEmptyStringValidator{}.ValidateString(context.Background(), req, resp)
 
 			gotErr := resp.Diagnostics.HasError()
 			if gotErr != tt.wantErr {
