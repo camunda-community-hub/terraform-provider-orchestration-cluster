@@ -26,6 +26,44 @@ func TestAccRoleMemberGroupResource(t *testing.T) {
 	})
 }
 
+// TestAccRoleMemberGroupResource_driftDetection verifies that if the group
+// is unassigned from the role out-of-band (outside Terraform), Read()
+// detects the drift and removes the resource from state, causing Terraform
+// to plan to recreate it.
+func TestAccRoleMemberGroupResource_driftDetection(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: providerConfig + testAccRoleMemberGroupResourceConfig(),
+				Check:  checkRoleGroupAssignmentExistsInEngine(),
+			},
+			// Unassign the group out-of-band, then re-plan/apply the same
+			// config and expect Terraform to detect the drift and plan to
+			// recreate the now-missing resource.
+			{
+				PreConfig:          unassignRoleMemberGroupOutOfBand("rolemembergrouprole", "rolemembertestgroup"),
+				Config:             providerConfig + testAccRoleMemberGroupResourceConfig(),
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func unassignRoleMemberGroupOutOfBand(roleId, groupId string) func() {
+	return func() {
+		client, err := camunda.NewClientWithResponses(testClusterURL)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := client.UnassignRoleFromGroupWithResponse(context.Background(), roleId, groupId); err != nil {
+			panic(err)
+		}
+	}
+}
+
 func testAccRoleMemberGroupResourceConfig() string {
 	return `
 resource "camundacluster_role" "rolemembergrouprole" {
