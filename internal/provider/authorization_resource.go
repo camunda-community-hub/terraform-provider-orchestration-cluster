@@ -31,12 +31,13 @@ type AuthorizationResource struct {
 }
 
 type AuthorizationResourceModel struct {
-	Id           types.String `tfsdk:"id"`
-	OwnerType    types.String `tfsdk:"owner_type"`
-	OwnerId      types.String `tfsdk:"owner_id"`
-	ResourceType types.String `tfsdk:"resource_type"`
-	Permissions  types.Set    `tfsdk:"permissions"`
-	ResourceId   types.String `tfsdk:"resource_id"`
+	Id                   types.String `tfsdk:"id"`
+	OwnerType            types.String `tfsdk:"owner_type"`
+	OwnerId              types.String `tfsdk:"owner_id"`
+	ResourceType         types.String `tfsdk:"resource_type"`
+	Permissions          types.Set    `tfsdk:"permissions"`
+	ResourceId           types.String `tfsdk:"resource_id"`
+	ResourcePropertyName types.String `tfsdk:"resource_property_name"`
 }
 
 func (r *AuthorizationResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -79,6 +80,16 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				MarkdownDescription: "The ID of the resource the permission relates to. Use \"*\" to match all resources.",
 				Optional:            true,
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"resource_property_name": schema.StringAttribute{
+				MarkdownDescription: "The name of the resource property the permission relates to (mutually exclusive with " +
+					"`resource_id`). This provider only creates and updates ID-based authorizations, so this attribute is " +
+					"populated only when reading or importing a property-based authorization that was created outside of " +
+					"this provider; it cannot be configured.",
+				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -161,15 +172,11 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 	authKey := apiResp.JSON201.AuthorizationKey
 	data.Id = types.StringValue(authKey)
 
-	// Re-read the full state from the engine
-	getResp, err := r.client.GetAuthorizationWithResponse(ctx, authKey)
+	// Re-read the full state from the engine, waiting out the eventual consistency of
+	// GetAuthorization: an immediate read right after a successful create can still 404.
+	getResp, err := readAuthorizationWithRetry(ctx, r.client, authKey)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read authorization after creation, got error: %s", err))
-		return
-	}
-
-	if getResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading authorization after creation, got HTTP error: %d", getResp.StatusCode()))
 		return
 	}
 
@@ -284,15 +291,12 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
-	// Re-read to get current state
-	getResp, err := r.client.GetAuthorizationWithResponse(ctx, state.Id.ValueString())
+	// Re-read to get current state, waiting until the read reflects the newly-applied
+	// permissions and resource scope: an immediate read right after a successful update can
+	// still return the pre-update values.
+	getResp, err := readAuthorizationUntilConsistent(ctx, r.client, state.Id.ValueString(), permissionStrings, resourceId)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read authorization after update, got error: %s", err))
-		return
-	}
-
-	if getResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading authorization after update, got HTTP error: %d", getResp.StatusCode()))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm authorization update, got error: %s", err))
 		return
 	}
 
@@ -355,11 +359,103 @@ func authorizationResultToModel(ctx context.Context, id types.String, result *ca
 	permSet, diags := types.SetValueFrom(ctx, types.StringType, perms)
 	data.Permissions = permSet
 
-	if result.ResourceId != nil && *result.ResourceId != "" {
+	// ResourceId and ResourcePropertyName are mutually exclusive on the API side: a
+	// property-based authorization has ResourcePropertyName set and ResourceId nil. Defaulting
+	// resource_id to "*" for that case would misrepresent the authorization's actual scope, and
+	// a later Update would then replace it with a much-too-broad wildcard grant.
+	switch {
+	case result.ResourcePropertyName != nil && *result.ResourcePropertyName != "":
+		data.ResourcePropertyName = types.StringValue(*result.ResourcePropertyName)
+		data.ResourceId = types.StringNull()
+	case result.ResourceId != nil && *result.ResourceId != "":
 		data.ResourceId = types.StringValue(*result.ResourceId)
-	} else {
+		data.ResourcePropertyName = types.StringNull()
+	default:
 		data.ResourceId = types.StringValue("*")
+		data.ResourcePropertyName = types.StringNull()
 	}
 
 	return data, diags
+}
+
+// readAuthorizationWithRetry handles the eventual consistency of fetching an authorization by
+// retrying a few times: if an authorization was just created, it may not be immediately
+// available through the API.
+func readAuthorizationWithRetry(ctx context.Context, client *camunda.ClientWithResponses, authKey string) (*camunda.GetAuthorizationResponse, error) {
+	return waitForConsistency(ctx, fmt.Sprintf("authorization %q", authKey), func() (*camunda.GetAuthorizationResponse, bool, error) {
+		readResp, err := client.GetAuthorizationWithResponse(ctx, authKey)
+		if err != nil {
+			return nil, false, err
+		}
+
+		switch readResp.StatusCode() {
+		case http.StatusOK:
+			return readResp, true, nil
+		case http.StatusNotFound:
+			return readResp, false, nil
+		default:
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+		}
+	})
+}
+
+// readAuthorizationUntilConsistent polls GET until it reflects the given permissions and
+// resource ID, handling the same eventual consistency on updates as readAuthorizationWithRetry
+// does on creates: the read-side projection can briefly return the pre-update values right
+// after a successful update, which would otherwise make Terraform's post-apply refresh plan
+// non-empty.
+func readAuthorizationUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, authKey string, expectedPermissions []string, expectedResourceId string) (*camunda.GetAuthorizationResponse, error) {
+	return waitForConsistency(ctx, fmt.Sprintf("authorization %q", authKey), func() (*camunda.GetAuthorizationResponse, bool, error) {
+		readResp, err := client.GetAuthorizationWithResponse(ctx, authKey)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if readResp.StatusCode() == http.StatusNotFound {
+			return readResp, false, nil
+		}
+
+		if readResp.StatusCode() != http.StatusOK {
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+		}
+
+		if readResp.JSON200 == nil {
+			return readResp, false, nil
+		}
+
+		if !permissionsMatch(readResp.JSON200.PermissionTypes, expectedPermissions) {
+			return readResp, false, nil
+		}
+
+		actualResourceId := ""
+		if readResp.JSON200.ResourceId != nil {
+			actualResourceId = *readResp.JSON200.ResourceId
+		}
+		if actualResourceId != expectedResourceId {
+			return readResp, false, nil
+		}
+
+		return readResp, true, nil
+	})
+}
+
+// permissionsMatch reports whether the permission types returned by the API are the same set
+// as expected, ignoring order.
+func permissionsMatch(actual []camunda.PermissionTypeEnum, expected []string) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+
+	actualSet := make(map[string]struct{}, len(actual))
+	for _, p := range actual {
+		actualSet[string(p)] = struct{}{}
+	}
+
+	for _, e := range expected {
+		if _, ok := actualSet[e]; !ok {
+			return false
+		}
+	}
+
+	return true
 }
