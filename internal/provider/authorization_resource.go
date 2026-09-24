@@ -406,7 +406,16 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 	// Re-read to get current state, waiting until the read reflects the newly-applied
 	// permissions and resource scope: an immediate read right after a successful update can
 	// still return the pre-update values.
-	getResp, err := readAuthorizationUntilConsistent(ctx, r.client, state.Id.ValueString(), permissionStrings, variant)
+	getResp, err := readAuthorizationUntilConsistent(
+		ctx,
+		r.client,
+		state.Id.ValueString(),
+		data.OwnerId.ValueString(),
+		camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
+		camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
+		permissionStrings,
+		variant,
+	)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm authorization update, got error: %s", err))
 		return
@@ -565,13 +574,16 @@ func readAuthorizationWithRetry(ctx context.Context, client *camunda.ClientWithR
 	})
 }
 
-// readAuthorizationUntilConsistent polls GET until it reflects the given permissions and
-// resource scope (resource ID or resource property name, depending on the expected
-// variant), handling the same eventual consistency on updates as readAuthorizationWithRetry
-// does on creates: the read-side projection can briefly return the pre-update values right
-// after a successful update, which would otherwise make Terraform's post-apply refresh plan
-// non-empty.
-func readAuthorizationUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, authKey string, expectedPermissions []string, expectedVariant authorizationRequestVariant) (*camunda.GetAuthorizationResponse, error) {
+// readAuthorizationUntilConsistent polls GET until it reflects the given owner, resource
+// type, permissions, and resource scope (resource ID or resource property name, depending
+// on the expected variant) -- every field Update() can actually change -- handling the same
+// eventual consistency on updates as readAuthorizationWithRetry does on creates: the
+// read-side projection can briefly return the pre-update values right after a successful
+// update, which would otherwise make Terraform's post-apply refresh plan non-empty. Checking
+// only a subset of the updated fields would let a stale read that happens to match on those
+// fields be accepted while others (e.g. owner_id changed but permissions didn't) are still
+// pre-update.
+func readAuthorizationUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, authKey string, expectedOwnerId string, expectedOwnerType camunda.OwnerTypeEnum, expectedResourceType camunda.ResourceTypeEnum, expectedPermissions []string, expectedVariant authorizationRequestVariant) (*camunda.GetAuthorizationResponse, error) {
 	return waitForConsistency(ctx, fmt.Sprintf("authorization %q", authKey), func() (*camunda.GetAuthorizationResponse, bool, error) {
 		readResp, err := client.GetAuthorizationWithResponse(ctx, authKey)
 		if err != nil {
@@ -587,6 +599,18 @@ func readAuthorizationUntilConsistent(ctx context.Context, client *camunda.Clien
 		}
 
 		if readResp.JSON200 == nil {
+			return readResp, false, nil
+		}
+
+		if readResp.JSON200.OwnerId != expectedOwnerId {
+			return readResp, false, nil
+		}
+
+		if readResp.JSON200.OwnerType != expectedOwnerType {
+			return readResp, false, nil
+		}
+
+		if readResp.JSON200.ResourceType != expectedResourceType {
 			return readResp, false, nil
 		}
 
