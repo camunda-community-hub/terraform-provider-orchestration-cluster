@@ -26,6 +26,44 @@ func TestAccGroupMemberClientResource(t *testing.T) {
 	})
 }
 
+// TestAccGroupMemberClientResource_driftDetection verifies that if the
+// client is unassigned from the group out-of-band (outside Terraform),
+// Read() detects the drift and removes the resource from state, causing
+// Terraform to plan to recreate it.
+func TestAccGroupMemberClientResource_driftDetection(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: providerConfig + testAccGroupMemberClientResourceConfig(),
+				Check:  checkGroupClientAssignmentExistsInEngine(),
+			},
+			// Unassign the client out-of-band, then re-plan/apply the same
+			// config and expect Terraform to detect the drift and plan to
+			// recreate the now-missing resource.
+			{
+				PreConfig:          unassignGroupMemberClientOutOfBand("clientmembergroup", "test-client"),
+				Config:             providerConfig + testAccGroupMemberClientResourceConfig(),
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func unassignGroupMemberClientOutOfBand(groupId, clientId string) func() {
+	return func() {
+		client, err := camunda.NewClientWithResponses(testClusterURL)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := client.UnassignClientFromGroupWithResponse(context.Background(), groupId, clientId); err != nil {
+			panic(err)
+		}
+	}
+}
+
 func testAccGroupMemberClientResourceConfig() string {
 	return `
 resource "camundacluster_group" "clientmembergroup" {
