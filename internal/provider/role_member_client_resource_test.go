@@ -26,6 +26,44 @@ func TestAccRoleMemberClientResource(t *testing.T) {
 	})
 }
 
+// TestAccRoleMemberClientResource_driftDetection verifies that if the
+// client is unassigned from the role out-of-band (outside Terraform),
+// Read() detects the drift and removes the resource from state, causing
+// Terraform to plan to recreate it.
+func TestAccRoleMemberClientResource_driftDetection(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: providerConfig + testAccRoleMemberClientResourceConfig(),
+				Check:  checkRoleClientAssignmentExistsInEngine(),
+			},
+			// Unassign the client out-of-band, then re-plan/apply the same
+			// config and expect Terraform to detect the drift and plan to
+			// recreate the now-missing resource.
+			{
+				PreConfig:          unassignRoleMemberClientOutOfBand("rolememberclientrole", "test-client-for-role"),
+				Config:             providerConfig + testAccRoleMemberClientResourceConfig(),
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func unassignRoleMemberClientOutOfBand(roleId, clientId string) func() {
+	return func() {
+		client, err := camunda.NewClientWithResponses(testClusterURL)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := client.UnassignRoleFromClientWithResponse(context.Background(), roleId, clientId); err != nil {
+			panic(err)
+		}
+	}
+}
+
 func testAccRoleMemberClientResourceConfig() string {
 	return `
 resource "camundacluster_role" "rolememberclientrole" {
