@@ -54,15 +54,16 @@ func checkAuthorizationExistsInEngine() resource.TestCheckFunc {
 				continue
 			}
 			authId := rs.Primary.ID
-			resp, err := client.GetAuthorizationWithResponse(context.Background(), authId)
+
+			_, err := waitForConsistency(context.Background(), fmt.Sprintf("authorization %q in engine", authId), func() (*camunda.GetAuthorizationResponse, bool, error) {
+				resp, err := client.GetAuthorizationWithResponse(context.Background(), authId)
+				if err != nil {
+					return nil, false, err
+				}
+				return resp, resp.StatusCode() == 200 && resp.JSON200 != nil, nil
+			})
 			if err != nil {
-				return fmt.Errorf("engine API call failed: %w", err)
-			}
-			if resp.StatusCode() != 200 {
-				return fmt.Errorf("authorization %s not found in engine (HTTP %d)", authId, resp.StatusCode())
-			}
-			if resp.JSON200 == nil {
-				return fmt.Errorf("authorization %s response body is nil", authId)
+				return fmt.Errorf("authorization %s not found or not matching in engine: %w", authId, err)
 			}
 			return nil
 		}
