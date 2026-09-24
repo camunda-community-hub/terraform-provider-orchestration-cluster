@@ -37,7 +37,7 @@ resource "camundacluster_authorization" "test" {
   owner_type    = "USER"
   owner_id      = "demo"
   resource_type = "PROCESS_DEFINITION"
-  permissions   = ["READ"]
+  permissions   = ["READ_PROCESS_DEFINITION"]
   resource_id   = "test-process"
 }
 `
