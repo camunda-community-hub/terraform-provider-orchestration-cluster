@@ -213,16 +213,25 @@ func (r *RoleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	if apiResp.JSON200 == nil {
+	// Re-read to confirm the update is reflected, waiting out the eventual consistency of
+	// GetRole: an immediate read right after a successful PUT can still return the old name
+	// and overwrite the just-updated state.
+	readResp, err := readRoleUntilConsistent(ctx, r.client, state.RoleId.ValueString(), data.Name.ValueString(), request.Description)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm role update, got error: %s", err))
+		return
+	}
+
+	if readResp.JSON200 == nil {
 		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
-	data.Id = types.StringValue(apiResp.JSON200.RoleId)
-	data.RoleId = types.StringValue(apiResp.JSON200.RoleId)
-	data.Name = types.StringValue(apiResp.JSON200.Name)
-	if apiResp.JSON200.Description != nil {
-		data.Description = types.StringValue(*apiResp.JSON200.Description)
+	data.Id = types.StringValue(readResp.JSON200.RoleId)
+	data.RoleId = types.StringValue(readResp.JSON200.RoleId)
+	data.Name = types.StringValue(readResp.JSON200.Name)
+	if readResp.JSON200.Description != nil {
+		data.Description = types.StringValue(*readResp.JSON200.Description)
 	} else {
 		data.Description = types.StringValue("")
 	}
@@ -271,5 +280,40 @@ func readRoleWithRetry(ctx context.Context, client *camunda.ClientWithResponses,
 		default:
 			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
 		}
+	})
+}
+
+// readRoleUntilConsistent polls GET until it reflects the given name and description,
+// handling the same eventual consistency on updates as readRoleWithRetry does on creates:
+// the read-side projection can briefly return the pre-update values right after a successful
+// PUT, which would otherwise make Terraform's post-apply refresh plan non-empty.
+func readRoleUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, roleId, expectedName string, expectedDescription *string) (*camunda.GetRoleResponse, error) {
+	return waitForConsistency(ctx, fmt.Sprintf("role %q", roleId), func() (*camunda.GetRoleResponse, bool, error) {
+		readResp, err := client.GetRoleWithResponse(ctx, roleId)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if readResp.StatusCode() == http.StatusNotFound {
+			return readResp, false, nil
+		}
+
+		if readResp.StatusCode() != http.StatusOK {
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+		}
+
+		if readResp.JSON200 == nil {
+			return readResp, false, nil
+		}
+
+		if readResp.JSON200.Name != expectedName {
+			return readResp, false, nil
+		}
+
+		if normalizedDescription(readResp.JSON200.Description) != normalizedDescription(expectedDescription) {
+			return readResp, false, nil
+		}
+
+		return readResp, true, nil
 	})
 }
