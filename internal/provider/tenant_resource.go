@@ -1,9 +1,7 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -219,24 +217,11 @@ func (r *TenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	// tenantUpdateBody mirrors camunda.TenantUpdateRequest but without `omitempty` on
-	// Description: the API is a PUT (full replace), and an omitted key is treated by the
-	// server as "leave the existing value unchanged" rather than "clear it". Sending an
-	// explicit JSON null is required to actually clear an existing description.
-	type tenantUpdateBody struct {
-		Description *string `json:"description"`
-		Name        string  `json:"name"`
-	}
-	body, err := json.Marshal(tenantUpdateBody{
+	request := camunda.UpdateTenantJSONRequestBody{
 		Description: data.Description.ValueStringPointer(),
 		Name:        data.Name.ValueString(),
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to encode tenant update request, got error: %s", err))
-		return
 	}
-
-	apiResp, err := r.client.UpdateTenantWithBodyWithResponse(ctx, data.TenantId.ValueString(), "application/json", bytes.NewReader(body))
+	apiResp, err := r.client.UpdateTenantWithResponse(ctx, data.TenantId.ValueString(), request)
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update tenant, got error: %s", err))
@@ -290,9 +275,13 @@ func (r *TenantResource) ImportState(ctx context.Context, req resource.ImportSta
 }
 
 // optionalStringValue converts an optional *string, as returned by the API for the
-// tenant description, into a types.String, mapping a nil pointer to a null value.
+// tenant description, into a types.String. The API reports a cleared or never-set
+// description as an empty string rather than omitting the field or returning null,
+// so both a nil pointer and an empty string must map to a null value: otherwise a
+// config with no `description` would show a perpetual diff against an API-reported
+// empty string.
 func optionalStringValue(s *string) types.String {
-	if s == nil {
+	if s == nil || *s == "" {
 		return types.StringNull()
 	}
 	return types.StringValue(*s)
@@ -345,13 +334,20 @@ func readTenantUntilConsistent(ctx context.Context, client *camunda.ClientWithRe
 			return readResp, false, nil
 		}
 
-		gotDescription := readResp.JSON200.Description
-		descriptionMatches := (gotDescription == nil && expectedDescription == nil) ||
-			(gotDescription != nil && expectedDescription != nil && *gotDescription == *expectedDescription)
-		if !descriptionMatches {
+		if normalizedDescription(readResp.JSON200.Description) != normalizedDescription(expectedDescription) {
 			return readResp, false, nil
 		}
 
 		return readResp, true, nil
 	})
+}
+
+// normalizedDescription treats a nil description pointer the same as an empty
+// string, matching the API's behavior of reporting a cleared or never-set
+// description as "" rather than omitting it or returning null.
+func normalizedDescription(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
