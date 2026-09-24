@@ -102,6 +102,22 @@ func (r *RoleMemberClientResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
+	_, err = waitForConsistency(ctx, fmt.Sprintf("role %q client %q assignment", data.RoleId.ValueString(), data.ClientId.ValueString()), func() (bool, bool, error) {
+		found, err := searchAllRoleClients(ctx, r.client, data.RoleId.ValueString(), data.ClientId.ValueString())
+		if err != nil {
+			if err.Error() == "not_found" {
+				// the role itself isn't found yet either — treat as pending, same reasoning
+				return false, false, nil
+			}
+			return false, false, err
+		}
+		return found, found, nil
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm client was assigned to role, got error: %s", err))
+		return
+	}
+
 	data.Id = types.StringValue(data.RoleId.ValueString() + "/" + data.ClientId.ValueString())
 
 	tflog.Trace(ctx, "created role member client resource")
