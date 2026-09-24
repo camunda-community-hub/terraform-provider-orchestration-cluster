@@ -29,11 +29,13 @@ func TestAccRoleMemberGroupResource(t *testing.T) {
 func testAccRoleMemberGroupResourceConfig() string {
 	return `
 resource "camundacluster_role" "rolemembergrouprole" {
-  name = "rolemembergrouprole"
+  role_id = "rolemembergrouprole"
+  name    = "rolemembergrouprole"
 }
 
 resource "camundacluster_group" "rolemembertestgroup" {
-  name = "rolemembertestgroup"
+  group_id = "rolemembertestgroup"
+  name     = "rolemembertestgroup"
 }
 
 resource "camundacluster_role_member_group" "test" {

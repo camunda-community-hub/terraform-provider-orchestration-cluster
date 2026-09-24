@@ -36,7 +36,8 @@ resource "camundacluster_user" "memberuser" {
 }
 
 resource "camundacluster_group" "membergroup" {
-  name = "membertestgroup"
+  group_id = "membertestgroup"
+  name     = "membertestgroup"
 }
 
 resource "camundacluster_group_member_user" "test" {
