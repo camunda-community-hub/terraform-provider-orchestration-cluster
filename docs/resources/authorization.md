@@ -24,9 +24,9 @@ A Camunda cluster authorization
 
 ### Optional
 
-- `resource_id` (String) The ID of the resource the permission relates to. Use "*" to match all resources.
+- `resource_id` (String) The ID of the resource the permission relates to. Use "*" to match all resources. Mutually exclusive with `resource_property_name`. If neither is set, defaults to "*".
+- `resource_property_name` (String) The name of the resource property the permission relates to. Mutually exclusive with `resource_id`. If neither is set, `resource_id` defaults to "*".
 
 ### Read-Only
 
 - `id` (String) The unique key of the authorization (string-encoded int64).
-- `resource_property_name` (String) The name of the resource property the permission relates to (mutually exclusive with `resource_id`). This provider only creates and updates ID-based authorizations, so this attribute is populated only when reading or importing a property-based authorization that was created outside of this provider; it cannot be configured.

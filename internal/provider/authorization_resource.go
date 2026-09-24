@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -77,25 +78,71 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				},
 			},
 			"resource_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the resource the permission relates to. Use \"*\" to match all resources.",
-				Optional:            true,
-				Computed:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"resource_property_name": schema.StringAttribute{
-				MarkdownDescription: "The name of the resource property the permission relates to (mutually exclusive with " +
-					"`resource_id`). This provider only creates and updates ID-based authorizations, so this attribute is " +
-					"populated only when reading or importing a property-based authorization that was created outside of " +
-					"this provider; it cannot be configured.",
+				MarkdownDescription: "The ID of the resource the permission relates to. Use \"*\" to match all resources. " +
+					"Mutually exclusive with `resource_property_name`. If neither is set, defaults to \"*\".",
+				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+				Validators: []validator.String{
+					mutuallyExclusiveStringValidator{otherAttribute: path.Root("resource_property_name")},
+				},
+			},
+			"resource_property_name": schema.StringAttribute{
+				MarkdownDescription: "The name of the resource property the permission relates to. Mutually exclusive with " +
+					"`resource_id`. If neither is set, `resource_id` defaults to \"*\".",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					mutuallyExclusiveStringValidator{otherAttribute: path.Root("resource_id")},
+				},
 			},
 		},
 	}
+}
+
+// mutuallyExclusiveStringValidator rejects a configured value when another string
+// attribute is also configured (non-null, non-unknown, non-empty), used to enforce that
+// `resource_id` and `resource_property_name` are not both set: the API's
+// AuthorizationRequest accepts either an ID-based or a property-based authorization, never
+// both at once.
+type mutuallyExclusiveStringValidator struct {
+	otherAttribute path.Path
+}
+
+func (v mutuallyExclusiveStringValidator) Description(ctx context.Context) string {
+	return fmt.Sprintf("cannot be set at the same time as %s", v.otherAttribute)
+}
+
+func (v mutuallyExclusiveStringValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v mutuallyExclusiveStringValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() || req.ConfigValue.ValueString() == "" {
+		return
+	}
+
+	var other types.String
+	diags := req.Config.GetAttribute(ctx, v.otherAttribute, &other)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	if other.IsNull() || other.IsUnknown() || other.ValueString() == "" {
+		return
+	}
+
+	resp.Diagnostics.AddAttributeError(
+		req.Path,
+		"Conflicting Attributes",
+		fmt.Sprintf("%s and %s are mutually exclusive; set at most one of them.", req.Path, v.otherAttribute),
+	)
 }
 
 func (r *AuthorizationResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -134,21 +181,16 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 		permissionTypes[i] = camunda.PermissionTypeEnum(p)
 	}
 
-	resourceId := "*"
-	if !data.ResourceId.IsNull() && !data.ResourceId.IsUnknown() && data.ResourceId.ValueString() != "" {
-		resourceId = data.ResourceId.ValueString()
-	}
+	variant := resolveAuthorizationRequestVariant(data.ResourceId, data.ResourcePropertyName)
 
-	idReq := camunda.AuthorizationIdBasedRequest{
-		OwnerId:         data.OwnerId.ValueString(),
-		OwnerType:       camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
-		PermissionTypes: permissionTypes,
-		ResourceId:      resourceId,
-		ResourceType:    camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
-	}
-
-	var authReq camunda.AuthorizationRequest
-	if err := authReq.FromAuthorizationIdBasedRequest(idReq); err != nil {
+	authReq, err := buildAuthorizationRequest(
+		data.OwnerId.ValueString(),
+		camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
+		permissionTypes,
+		camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
+		variant,
+	)
+	if err != nil {
 		resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode authorization request: %s", err))
 		return
 	}
@@ -261,21 +303,22 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 		permissionTypes[i] = camunda.PermissionTypeEnum(p)
 	}
 
-	resourceId := "*"
-	if !data.ResourceId.IsNull() && !data.ResourceId.IsUnknown() && data.ResourceId.ValueString() != "" {
-		resourceId = data.ResourceId.ValueString()
-	}
+	// Use the plan's resource_id/resource_property_name, not the state's: the plan already
+	// carries over an unmodified property-based authorization's resource_property_name (via
+	// UseStateForUnknown, since it is Optional+Computed), so an update that only changes e.g.
+	// permissions still resolves to the property-based variant instead of defaulting
+	// resource_id to "*" and silently converting the authorization to a wildcard ID-based
+	// grant.
+	variant := resolveAuthorizationRequestVariant(data.ResourceId, data.ResourcePropertyName)
 
-	idReq := camunda.AuthorizationIdBasedRequest{
-		OwnerId:         data.OwnerId.ValueString(),
-		OwnerType:       camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
-		PermissionTypes: permissionTypes,
-		ResourceId:      resourceId,
-		ResourceType:    camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
-	}
-
-	var updateReq camunda.UpdateAuthorizationJSONRequestBody
-	if err := updateReq.FromAuthorizationIdBasedRequest(idReq); err != nil {
+	updateReq, err := buildAuthorizationRequest(
+		data.OwnerId.ValueString(),
+		camunda.OwnerTypeEnum(data.OwnerType.ValueString()),
+		permissionTypes,
+		camunda.ResourceTypeEnum(data.ResourceType.ValueString()),
+		variant,
+	)
+	if err != nil {
 		resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode authorization request: %s", err))
 		return
 	}
@@ -294,7 +337,7 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 	// Re-read to get current state, waiting until the read reflects the newly-applied
 	// permissions and resource scope: an immediate read right after a successful update can
 	// still return the pre-update values.
-	getResp, err := readAuthorizationUntilConsistent(ctx, r.client, state.Id.ValueString(), permissionStrings, resourceId)
+	getResp, err := readAuthorizationUntilConsistent(ctx, r.client, state.Id.ValueString(), permissionStrings, variant)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm authorization update, got error: %s", err))
 		return
@@ -342,6 +385,60 @@ func (r *AuthorizationResource) ImportState(ctx context.Context, req resource.Im
 		return
 	}
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// authorizationRequestVariant identifies which of the two mutually exclusive shapes an
+// AuthorizationRequest should take: ID-based (scoped to a specific resource ID, or "*" for
+// all resources) or property-based (scoped to a named resource property).
+type authorizationRequestVariant struct {
+	resourceId           string
+	resourcePropertyName string
+	isPropertyBased      bool
+}
+
+// resolveAuthorizationRequestVariant picks the request variant to build from a
+// resource_id/resource_property_name pair as found in a Terraform plan or state: a
+// non-null, non-unknown, non-empty resource_property_name selects the property-based
+// variant; otherwise the ID-based variant is used, defaulting resource_id to "*" when it is
+// not itself configured. The schema-level mutuallyExclusiveStringValidator on both
+// attributes ensures they are never both set at the same time.
+func resolveAuthorizationRequestVariant(resourceId, resourcePropertyName types.String) authorizationRequestVariant {
+	if !resourcePropertyName.IsNull() && !resourcePropertyName.IsUnknown() && resourcePropertyName.ValueString() != "" {
+		return authorizationRequestVariant{resourcePropertyName: resourcePropertyName.ValueString(), isPropertyBased: true}
+	}
+
+	resolvedResourceId := "*"
+	if !resourceId.IsNull() && !resourceId.IsUnknown() && resourceId.ValueString() != "" {
+		resolvedResourceId = resourceId.ValueString()
+	}
+	return authorizationRequestVariant{resourceId: resolvedResourceId}
+}
+
+// buildAuthorizationRequest encodes an AuthorizationRequest for the given variant.
+// UpdateAuthorizationJSONRequestBody is a type alias for camunda.AuthorizationRequest, so
+// this same encoding is used for both Create and Update.
+func buildAuthorizationRequest(ownerId string, ownerType camunda.OwnerTypeEnum, permissionTypes []camunda.PermissionTypeEnum, resourceType camunda.ResourceTypeEnum, variant authorizationRequestVariant) (camunda.AuthorizationRequest, error) {
+	var authReq camunda.AuthorizationRequest
+
+	if variant.isPropertyBased {
+		propReq := camunda.AuthorizationPropertyBasedRequest{
+			OwnerId:              ownerId,
+			OwnerType:            ownerType,
+			PermissionTypes:      permissionTypes,
+			ResourcePropertyName: variant.resourcePropertyName,
+			ResourceType:         resourceType,
+		}
+		return authReq, authReq.FromAuthorizationPropertyBasedRequest(propReq)
+	}
+
+	idReq := camunda.AuthorizationIdBasedRequest{
+		OwnerId:         ownerId,
+		OwnerType:       ownerType,
+		PermissionTypes: permissionTypes,
+		ResourceId:      variant.resourceId,
+		ResourceType:    resourceType,
+	}
+	return authReq, authReq.FromAuthorizationIdBasedRequest(idReq)
 }
 
 func authorizationResultToModel(ctx context.Context, id types.String, result *camunda.AuthorizationResult) (AuthorizationResourceModel, diag.Diagnostics) {
@@ -400,11 +497,12 @@ func readAuthorizationWithRetry(ctx context.Context, client *camunda.ClientWithR
 }
 
 // readAuthorizationUntilConsistent polls GET until it reflects the given permissions and
-// resource ID, handling the same eventual consistency on updates as readAuthorizationWithRetry
+// resource scope (resource ID or resource property name, depending on the expected
+// variant), handling the same eventual consistency on updates as readAuthorizationWithRetry
 // does on creates: the read-side projection can briefly return the pre-update values right
 // after a successful update, which would otherwise make Terraform's post-apply refresh plan
 // non-empty.
-func readAuthorizationUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, authKey string, expectedPermissions []string, expectedResourceId string) (*camunda.GetAuthorizationResponse, error) {
+func readAuthorizationUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, authKey string, expectedPermissions []string, expectedVariant authorizationRequestVariant) (*camunda.GetAuthorizationResponse, error) {
 	return waitForConsistency(ctx, fmt.Sprintf("authorization %q", authKey), func() (*camunda.GetAuthorizationResponse, bool, error) {
 		readResp, err := client.GetAuthorizationWithResponse(ctx, authKey)
 		if err != nil {
@@ -427,11 +525,22 @@ func readAuthorizationUntilConsistent(ctx context.Context, client *camunda.Clien
 			return readResp, false, nil
 		}
 
+		if expectedVariant.isPropertyBased {
+			actualResourcePropertyName := ""
+			if readResp.JSON200.ResourcePropertyName != nil {
+				actualResourcePropertyName = *readResp.JSON200.ResourcePropertyName
+			}
+			if actualResourcePropertyName != expectedVariant.resourcePropertyName {
+				return readResp, false, nil
+			}
+			return readResp, true, nil
+		}
+
 		actualResourceId := ""
 		if readResp.JSON200.ResourceId != nil {
 			actualResourceId = *readResp.JSON200.ResourceId
 		}
-		if actualResourceId != expectedResourceId {
+		if actualResourceId != expectedVariant.resourceId {
 			return readResp, false, nil
 		}
 
