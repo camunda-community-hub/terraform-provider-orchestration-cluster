@@ -102,6 +102,22 @@ func (r *GroupMemberClientResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
+	_, err = waitForConsistency(ctx, fmt.Sprintf("group %q client %q assignment", data.GroupId.ValueString(), data.ClientId.ValueString()), func() (bool, bool, error) {
+		found, err := searchAllGroupClients(ctx, r.client, data.GroupId.ValueString(), data.ClientId.ValueString())
+		if err != nil {
+			if err.Error() == "not_found" {
+				// the group itself isn't found yet either — treat as pending, same reasoning
+				return false, false, nil
+			}
+			return false, false, err
+		}
+		return found, found, nil
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm client was assigned to group, got error: %s", err))
+		return
+	}
+
 	data.Id = types.StringValue(data.GroupId.ValueString() + "/" + data.ClientId.ValueString())
 
 	tflog.Trace(ctx, "created group member client resource")
