@@ -110,3 +110,53 @@ func TestTenantIdValidator_ValidateString_NullAndUnknown(t *testing.T) {
 		})
 	}
 }
+
+// TestNonEmptyStringValidator_ValidateString is a pure unit test for nonEmptyStringValidator,
+// used on the tenant `description` attribute to reject an explicitly configured empty string
+// (which the API would otherwise silently normalize to null, per optionalStringValue) while
+// still allowing null and unknown values through.
+func TestNonEmptyStringValidator_ValidateString(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   types.String
+		wantErr bool
+	}{
+		{
+			name:    "non-empty string accepted",
+			value:   types.StringValue("A test tenant"),
+			wantErr: false,
+		},
+		{
+			name:    "empty string rejected",
+			value:   types.StringValue(""),
+			wantErr: true,
+		},
+		{
+			name:    "null accepted (attribute omitted)",
+			value:   types.StringNull(),
+			wantErr: false,
+		},
+		{
+			name:    "unknown accepted",
+			value:   types.StringUnknown(),
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := validator.StringRequest{
+				Path:        path.Root("description"),
+				ConfigValue: tt.value,
+			}
+			resp := &validator.StringResponse{}
+
+			nonEmptyStringValidator{}.ValidateString(context.Background(), req, resp)
+
+			gotErr := resp.Diagnostics.HasError()
+			if gotErr != tt.wantErr {
+				t.Fatalf("value %q: got error = %v, want error = %v (diagnostics: %v)", tt.value, gotErr, tt.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+}
