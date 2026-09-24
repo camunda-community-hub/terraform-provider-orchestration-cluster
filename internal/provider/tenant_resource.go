@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -15,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
@@ -285,51 +283,17 @@ func optionalStringValue(s *string) types.String {
 	return types.StringValue(*s)
 }
 
-// readTenantWithRetry handles the eventual consistency of fetching a tenant by retrying a few times.
+// readTenantWithRetry handles the eventual consistency of fetching a tenant by retrying a few times:
+// if a tenant was just created, it may not be immediately available through the API.
 func readTenantWithRetry(ctx context.Context, client *camunda.ClientWithResponses, tenantId string) (*camunda.GetTenantResponse, error) {
-	// Reading a tenant is eventually consistent: if a tenant is just created, it may not be immediately available through the API.
-	// Handle the eventual consistency by retrying a few times with some delay in between until the tenant is found or we timeout.
-	createState := &retry.StateChangeConf{
-		Pending: []string{
-			fmt.Sprintf("%d", http.StatusNotFound),
-		},
+	return waitForConsistency(ctx, fmt.Sprintf("tenant %q", tenantId), func() (*camunda.GetTenantResponse, bool, error) {
+		readResp, err := client.GetTenantWithResponse(ctx, tenantId)
+		if err != nil {
+			return nil, false, err
+		}
 
-		Target: []string{
-			fmt.Sprintf("%d", http.StatusOK),
-		},
-
-		// How many times the target state has to be reached to continue.
-		ContinuousTargetOccurence: 1,
-
-		Refresh: func() (any, string, error) {
-			readResp, err := client.GetTenantWithResponse(ctx, tenantId)
-
-			if err != nil {
-				return nil, "", err
-			}
-
-			return readResp, fmt.Sprintf("%d", readResp.StatusCode()), nil
-		},
-
-		// Don't wait too long for the first poll
-		Delay:      1 * time.Second,
-		MinTimeout: 2 * time.Second,
-		// Wait at most this duration before considering the tenant has not been found
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := createState.WaitForStateContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("timed out while waiting for tenant '%s' to be created: %w", tenantId, err)
-	}
-
-	r, ok := resp.(*camunda.GetTenantResponse)
-	if !ok {
-		// This should not happen
-		return nil, fmt.Errorf("unexpected type for tenant read response: %T", resp)
-	}
-
-	return r, nil
+		return readResp, readResp.StatusCode() == http.StatusOK, nil
+	})
 }
 
 // readTenantUntilConsistent polls GET until it reflects the given name and description,
@@ -337,54 +301,27 @@ func readTenantWithRetry(ctx context.Context, client *camunda.ClientWithResponse
 // the read-side projection can briefly return the pre-update values right after a successful
 // PUT, which would otherwise make Terraform's post-apply refresh plan non-empty.
 func readTenantUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, tenantId, expectedName string, expectedDescription *string) (*camunda.GetTenantResponse, error) {
-	const pending = "pending"
-	const consistent = "consistent"
+	return waitForConsistency(ctx, fmt.Sprintf("tenant %q", tenantId), func() (*camunda.GetTenantResponse, bool, error) {
+		readResp, err := client.GetTenantWithResponse(ctx, tenantId)
+		if err != nil {
+			return nil, false, err
+		}
 
-	updateState := &retry.StateChangeConf{
-		Pending: []string{pending},
-		Target:  []string{consistent},
+		if readResp.StatusCode() != http.StatusOK || readResp.JSON200 == nil {
+			return readResp, false, nil
+		}
 
-		ContinuousTargetOccurence: 1,
+		if readResp.JSON200.Name != expectedName {
+			return readResp, false, nil
+		}
 
-		Refresh: func() (any, string, error) {
-			readResp, err := client.GetTenantWithResponse(ctx, tenantId)
-			if err != nil {
-				return nil, "", err
-			}
+		gotDescription := readResp.JSON200.Description
+		descriptionMatches := (gotDescription == nil && expectedDescription == nil) ||
+			(gotDescription != nil && expectedDescription != nil && *gotDescription == *expectedDescription)
+		if !descriptionMatches {
+			return readResp, false, nil
+		}
 
-			if readResp.StatusCode() != http.StatusOK || readResp.JSON200 == nil {
-				return readResp, pending, nil
-			}
-
-			if readResp.JSON200.Name != expectedName {
-				return readResp, pending, nil
-			}
-
-			gotDescription := readResp.JSON200.Description
-			descriptionMatches := (gotDescription == nil && expectedDescription == nil) ||
-				(gotDescription != nil && expectedDescription != nil && *gotDescription == *expectedDescription)
-			if !descriptionMatches {
-				return readResp, pending, nil
-			}
-
-			return readResp, consistent, nil
-		},
-
-		Delay:      1 * time.Second,
-		MinTimeout: 2 * time.Second,
-		Timeout:    30 * time.Second,
-	}
-
-	resp, err := updateState.WaitForStateContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("timed out while waiting for tenant '%s' update to become consistent: %w", tenantId, err)
-	}
-
-	r, ok := resp.(*camunda.GetTenantResponse)
-	if !ok {
-		// This should not happen
-		return nil, fmt.Errorf("unexpected type for tenant read response: %T", resp)
-	}
-
-	return r, nil
+		return readResp, true, nil
+	})
 }
