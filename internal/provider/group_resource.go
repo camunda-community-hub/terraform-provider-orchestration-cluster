@@ -28,9 +28,10 @@ type GroupResource struct {
 }
 
 type GroupResourceModel struct {
-	Id      types.String `tfsdk:"id"`
-	GroupId types.String `tfsdk:"group_id"`
-	Name    types.String `tfsdk:"name"`
+	Id          types.String `tfsdk:"id"`
+	GroupId     types.String `tfsdk:"group_id"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
 }
 
 func (r *GroupResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -59,6 +60,11 @@ func (r *GroupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"name": schema.StringAttribute{
 				MarkdownDescription: "The display name of the group.",
 				Required:            true,
+			},
+			"description": schema.StringAttribute{
+				MarkdownDescription: "The description of the group.",
+				Optional:            true,
+				Computed:            true,
 			},
 		},
 	}
@@ -93,6 +99,10 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		GroupId: data.GroupId.ValueString(),
 		Name:    data.Name.ValueString(),
 	}
+	if !data.Description.IsNull() && !data.Description.IsUnknown() {
+		desc := data.Description.ValueString()
+		request.Description = &desc
+	}
 
 	apiResp, err := r.client.CreateGroupWithResponse(ctx, request)
 	if err != nil {
@@ -118,6 +128,11 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 	data.Id = types.StringValue(apiResp.JSON201.GroupId)
 	data.GroupId = types.StringValue(apiResp.JSON201.GroupId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
+	if apiResp.JSON201.Description != nil {
+		data.Description = types.StringValue(*apiResp.JSON201.Description)
+	} else {
+		data.Description = types.StringValue("")
+	}
 
 	tflog.Trace(ctx, "created group resource")
 
@@ -156,6 +171,11 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	data.Id = types.StringValue(apiResp.JSON200.GroupId)
 	data.GroupId = types.StringValue(apiResp.JSON200.GroupId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
+	if apiResp.JSON200.Description != nil {
+		data.Description = types.StringValue(*apiResp.JSON200.Description)
+	} else {
+		data.Description = types.StringValue("")
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -177,6 +197,10 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	request := camunda.UpdateGroupJSONRequestBody{
 		Name: data.Name.ValueString(),
 	}
+	if !data.Description.IsNull() && !data.Description.IsUnknown() {
+		desc := data.Description.ValueString()
+		request.Description = &desc
+	}
 
 	apiResp, err := r.client.UpdateGroupWithResponse(ctx, state.GroupId.ValueString(), request)
 	if err != nil {
@@ -197,6 +221,11 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	data.Id = types.StringValue(apiResp.JSON200.GroupId)
 	data.GroupId = types.StringValue(apiResp.JSON200.GroupId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
+	if apiResp.JSON200.Description != nil {
+		data.Description = types.StringValue(*apiResp.JSON200.Description)
+	} else {
+		data.Description = types.StringValue("")
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

@@ -20,6 +20,10 @@ A Camunda cluster group
 - `group_id` (String) The unique ID for the group.
 - `name` (String) The display name of the group.
 
+### Optional
+
+- `description` (String) The description of the group.
+
 ### Read-Only
 
 - `id` (String) The unique ID of the group (the group ID).

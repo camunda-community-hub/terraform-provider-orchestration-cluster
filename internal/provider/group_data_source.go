@@ -26,8 +26,9 @@ type GroupDataSource struct {
 }
 
 type GroupDataSourceModel struct {
-	Id   types.String `tfsdk:"id"`
-	Name types.String `tfsdk:"name"`
+	Id          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
 }
 
 func (d *GroupDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -46,6 +47,10 @@ func (d *GroupDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 			"name": schema.StringAttribute{
 				MarkdownDescription: "The display name of the group to look up. Must match exactly one group.",
 				Required:            true,
+			},
+			"description": schema.StringAttribute{
+				MarkdownDescription: "The description of the group.",
+				Computed:            true,
 			},
 		},
 	}
@@ -138,6 +143,11 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	match := result.Items[0]
 	data.Id = types.StringValue(match.GroupId)
 	data.Name = types.StringValue(match.Name)
+	if match.Description != nil {
+		data.Description = types.StringValue(*match.Description)
+	} else {
+		data.Description = types.StringValue("")
+	}
 
 	tflog.Trace(ctx, "read group data source")
 

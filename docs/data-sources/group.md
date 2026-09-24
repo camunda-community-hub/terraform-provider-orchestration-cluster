@@ -21,4 +21,5 @@ Looks up a Camunda cluster group by name.
 
 ### Read-Only
 
+- `description` (String) The description of the group.
 - `id` (String) The unique ID of the group.
