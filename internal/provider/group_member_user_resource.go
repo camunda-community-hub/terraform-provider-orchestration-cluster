@@ -158,15 +158,19 @@ func searchAllGroupUsers(ctx context.Context, client *camunda.ClientWithResponse
 	for {
 		body := camunda.SearchUsersForGroupJSONRequestBody{}
 		pageSize := int32(100)
-		cursorPage := camunda.CursorForwardPagination{Limit: &pageSize}
+		// CursorForwardPagination.After has no `omitempty` json tag, so leaving it at its
+		// zero value would still serialize an explicit `"after":""`, which the server
+		// rejects as a malformed cursor (HTTP 500) on the very first page. Only set Page
+		// at all once there is an actual cursor to send; the server applies its own
+		// default paging behavior when the field is omitted entirely.
 		if cursor != "" {
-			cursorPage.After = cursor
+			cursorPage := camunda.CursorForwardPagination{Limit: &pageSize, After: cursor}
+			sqpr := camunda.SearchQueryPageRequest{}
+			if err := sqpr.FromCursorForwardPagination(cursorPage); err != nil {
+				return false, fmt.Errorf("encoding cursor: %w", err)
+			}
+			body.Page = &sqpr
 		}
-		sqpr := camunda.SearchQueryPageRequest{}
-		if err := sqpr.FromCursorForwardPagination(cursorPage); err != nil {
-			return false, fmt.Errorf("encoding cursor: %w", err)
-		}
-		body.Page = &sqpr
 
 		searchResp, err := client.SearchUsersForGroupWithResponse(ctx, groupId, body)
 		if err != nil {
