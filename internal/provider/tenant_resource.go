@@ -49,8 +49,13 @@ func (r *TenantResource) Schema(ctx context.Context, req resource.SchemaRequest,
 
 		Attributes: map[string]schema.Attribute{
 			"description": schema.StringAttribute{
-				MarkdownDescription: "The description of the tenant.",
-				Optional:            true,
+				MarkdownDescription: "The description of the tenant. Omit this attribute (or set it to `null`) to indicate no " +
+					"description — the API cannot distinguish an empty string from an absent description, so an explicitly " +
+					"configured empty string is rejected rather than silently normalized to null.",
+				Optional: true,
+				Validators: []validator.String{
+					nonEmptyStringValidator{},
+				},
 			},
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The unique ID of a tenant (the tenant ID).",
@@ -111,6 +116,36 @@ func (v tenantIdValidator) ValidateString(ctx context.Context, req validator.Str
 			req.Path,
 			"Invalid Tenant ID",
 			fmt.Sprintf("tenant_id %q must be 31 characters or less and contain only letters, numbers, '_', '-' and '.'.", req.ConfigValue.ValueString()),
+		)
+	}
+}
+
+// nonEmptyStringValidator rejects an explicitly configured empty string, while still
+// allowing null (attribute omitted) and unknown values through. It exists because the
+// tenant API conflates an empty description with an absent one (see optionalStringValue):
+// without this validator, a configured `description = ""` would be silently normalized
+// to null after Create/Update, producing a persistent diff between the configured value
+// and the stored state.
+type nonEmptyStringValidator struct{}
+
+func (v nonEmptyStringValidator) Description(ctx context.Context) string {
+	return "must not be an empty string; omit the attribute (or set it to null) instead"
+}
+
+func (v nonEmptyStringValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v nonEmptyStringValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	if req.ConfigValue.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Description",
+			fmt.Sprintf("%s must not be an empty string; omit the attribute (or set it to null) to indicate no description.", req.Path),
 		)
 	}
 }

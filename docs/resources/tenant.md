@@ -30,7 +30,7 @@ resource "camundacluster_tenant" "example" {
 
 ### Optional
 
-- `description` (String) The description of the tenant.
+- `description` (String) The description of the tenant. Omit this attribute (or set it to `null`) to indicate no description — the API cannot distinguish an empty string from an absent description, so an explicitly configured empty string is rejected rather than silently normalized to null.
 
 ### Read-Only
 
