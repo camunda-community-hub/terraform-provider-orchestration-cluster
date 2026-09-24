@@ -120,6 +120,11 @@ func (r *RoleResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	if _, err := readRoleWithRetry(ctx, r.client, apiResp.JSON201.RoleId); err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read role after creation, got error: %s", err))
+		return
+	}
+
 	data.Id = types.StringValue(apiResp.JSON201.RoleId)
 	data.RoleId = types.StringValue(apiResp.JSON201.RoleId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
@@ -247,4 +252,24 @@ func (r *RoleResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 
 func (r *RoleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("role_id"), req, resp)
+}
+
+// readRoleWithRetry handles the eventual consistency of fetching a role by retrying a few
+// times: if a role was just created, it may not be immediately available through the API.
+func readRoleWithRetry(ctx context.Context, client *camunda.ClientWithResponses, roleId string) (*camunda.GetRoleResponse, error) {
+	return waitForConsistency(ctx, fmt.Sprintf("role %q", roleId), func() (*camunda.GetRoleResponse, bool, error) {
+		readResp, err := client.GetRoleWithResponse(ctx, roleId)
+		if err != nil {
+			return nil, false, err
+		}
+
+		switch readResp.StatusCode() {
+		case http.StatusOK:
+			return readResp, true, nil
+		case http.StatusNotFound:
+			return readResp, false, nil
+		default:
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+		}
+	})
 }

@@ -110,6 +110,11 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
+	if _, err := readGroupWithRetry(ctx, r.client, apiResp.JSON201.GroupId); err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read group after creation, got error: %s", err))
+		return
+	}
+
 	data.Id = types.StringValue(apiResp.JSON201.GroupId)
 	data.GroupId = types.StringValue(apiResp.JSON201.GroupId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
@@ -218,4 +223,24 @@ func (r *GroupResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 func (r *GroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("group_id"), req, resp)
+}
+
+// readGroupWithRetry handles the eventual consistency of fetching a group by retrying a few
+// times: if a group was just created, it may not be immediately available through the API.
+func readGroupWithRetry(ctx context.Context, client *camunda.ClientWithResponses, groupId string) (*camunda.GetGroupResponse, error) {
+	return waitForConsistency(ctx, fmt.Sprintf("group %q", groupId), func() (*camunda.GetGroupResponse, bool, error) {
+		readResp, err := client.GetGroupWithResponse(ctx, groupId)
+		if err != nil {
+			return nil, false, err
+		}
+
+		switch readResp.StatusCode() {
+		case http.StatusOK:
+			return readResp, true, nil
+		case http.StatusNotFound:
+			return readResp, false, nil
+		default:
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+		}
+	})
 }
