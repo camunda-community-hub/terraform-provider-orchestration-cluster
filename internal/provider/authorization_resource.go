@@ -83,7 +83,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_property_name")},
 				},
 				Validators: []validator.String{
 					mutuallyExclusiveStringValidator{otherAttribute: path.Root("resource_property_name")},
@@ -95,7 +95,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_id")},
 				},
 				Validators: []validator.String{
 					mutuallyExclusiveStringValidator{otherAttribute: path.Root("resource_id")},
@@ -143,6 +143,71 @@ func (v mutuallyExclusiveStringValidator) ValidateString(ctx context.Context, re
 		"Conflicting Attributes",
 		fmt.Sprintf("%s and %s are mutually exclusive; set at most one of them.", req.Path, v.otherAttribute),
 	)
+}
+
+// authorizationScopePlanModifier implements the cross-attribute plan-modifier logic shared by
+// resource_id and resource_property_name. Both are Optional+Computed and mutually exclusive,
+// so a bare stringplanmodifier.UseStateForUnknown() on each would restore the OMITTED
+// attribute's prior state value even when the sibling attribute's config just changed to fill
+// the other scope, producing an inconsistent plan where both scopes appear populated (and
+// causing resolveAuthorizationRequestVariant to resolve the wrong variant in one of the two
+// transition directions). This modifier instead only restores prior state when neither
+// attribute is configured (the "defaults to wildcard" case, where nothing about scope is
+// changing); when this attribute is omitted but the sibling IS configured, it plans an
+// explicit null so the abandoned scope's stale value doesn't linger in the plan.
+type authorizationScopePlanModifier struct {
+	siblingAttribute path.Path
+}
+
+func (m authorizationScopePlanModifier) Description(ctx context.Context) string {
+	return fmt.Sprintf("Preserves the prior state value when this attribute and %s are both omitted from "+
+		"configuration. When this attribute is omitted but %s is configured, plans an explicit null instead, "+
+		"so switching between the two scopes doesn't retain a stale value from the abandoned scope.",
+		m.siblingAttribute, m.siblingAttribute)
+}
+
+func (m authorizationScopePlanModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m authorizationScopePlanModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// Do nothing if there is no state (resource is being created): defaulting resource_id to
+	// "*" (or resolving the property-based variant) happens in Create() itself, so the plan
+	// value should stay unknown, matching stringplanmodifier.UseStateForUnknown's own guard.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	// A value explicitly configured for this attribute flows through unchanged; only react
+	// when the attribute itself is omitted from configuration.
+	if !req.ConfigValue.IsNull() {
+		return
+	}
+
+	// Do nothing if there is already a known planned value.
+	if !req.PlanValue.IsUnknown() {
+		return
+	}
+
+	var siblingConfigValue types.String
+	diags := req.Config.GetAttribute(ctx, m.siblingAttribute, &siblingConfigValue)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	if siblingConfigValue.IsNull() {
+		// Neither scope attribute is configured: this is the "default to wildcard" case, and
+		// nothing about scope is changing, so behave like UseStateForUnknown and restore the
+		// prior state value.
+		resp.PlanValue = req.StateValue
+		return
+	}
+
+	// The sibling attribute is configured: the user is switching to the other scope type, so
+	// this attribute must plan to become explicitly null rather than retaining a stale value
+	// from the abandoned scope.
+	resp.PlanValue = types.StringNull()
 }
 
 func (r *AuthorizationResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -305,10 +370,12 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 
 	// Use the plan's resource_id/resource_property_name, not the state's: the plan already
 	// carries over an unmodified property-based authorization's resource_property_name (via
-	// UseStateForUnknown, since it is Optional+Computed), so an update that only changes e.g.
-	// permissions still resolves to the property-based variant instead of defaulting
-	// resource_id to "*" and silently converting the authorization to a wildcard ID-based
-	// grant.
+	// authorizationScopePlanModifier, since it is Optional+Computed), so an update that only
+	// changes e.g. permissions still resolves to the property-based variant instead of
+	// defaulting resource_id to "*" and silently converting the authorization to a wildcard
+	// ID-based grant. When the plan reflects an actual scope transition, the plan modifier
+	// instead plans the abandoned attribute to explicit null, so this resolves to the newly
+	// configured variant.
 	variant := resolveAuthorizationRequestVariant(data.ResourceId, data.ResourcePropertyName)
 
 	updateReq, err := buildAuthorizationRequest(
