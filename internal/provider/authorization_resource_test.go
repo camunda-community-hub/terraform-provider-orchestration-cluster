@@ -128,7 +128,7 @@ func checkAuthorizationExistsInEngineWithVariant(resourceName string, expectedPe
 		}
 		authId := rs.Primary.ID
 
-		if _, err := readAuthorizationUntilConsistent(context.Background(), client, authId, expectedPermissions, expectedVariant); err != nil {
+		if _, err := readAuthorizationUntilConsistent(context.Background(), client, authId, "demo", camunda.OwnerTypeEnum("USER"), camunda.ResourceTypeEnum("PROCESS_DEFINITION"), expectedPermissions, expectedVariant); err != nil {
 			return fmt.Errorf("authorization %s not found or not matching in engine: %w", authId, err)
 		}
 		return nil
