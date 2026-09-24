@@ -187,10 +187,16 @@ func (r *MappingRuleResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	data.MappingRuleId = types.StringValue(apiResp.JSON200.MappingRuleId)
-	data.ClaimName = types.StringValue(apiResp.JSON200.ClaimName)
-	data.ClaimValue = types.StringValue(apiResp.JSON200.ClaimValue)
-	data.Name = types.StringValue(apiResp.JSON200.Name)
+	readResp, err := readMappingRuleUntilConsistent(ctx, r.client, data.MappingRuleId.ValueString(), data.ClaimName.ValueString(), data.ClaimValue.ValueString(), data.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm mapping rule update, got error: %s", err))
+		return
+	}
+
+	data.MappingRuleId = types.StringValue(readResp.JSON200.MappingRuleId)
+	data.ClaimName = types.StringValue(readResp.JSON200.ClaimName)
+	data.ClaimValue = types.StringValue(readResp.JSON200.ClaimValue)
+	data.Name = types.StringValue(readResp.JSON200.Name)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -232,5 +238,28 @@ func readMappingRuleWithRetry(ctx context.Context, client *camunda.ClientWithRes
 		}
 
 		return readResp, readResp.StatusCode() == http.StatusOK, nil
+	})
+}
+
+// readMappingRuleUntilConsistent polls GET until it reflects the given claim name, claim value,
+// and name, handling the same eventual consistency on updates as readMappingRuleWithRetry does on
+// creates: the read-side projection can briefly return the pre-update values right after a
+// successful PUT, which would otherwise make Terraform's post-apply refresh plan non-empty.
+func readMappingRuleUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, mappingRuleId, expectedClaimName, expectedClaimValue, expectedName string) (*camunda.GetMappingRuleResponse, error) {
+	return waitForConsistency(ctx, fmt.Sprintf("mapping rule %q", mappingRuleId), func() (*camunda.GetMappingRuleResponse, bool, error) {
+		readResp, err := client.GetMappingRuleWithResponse(ctx, mappingRuleId)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if readResp.StatusCode() != http.StatusOK || readResp.JSON200 == nil {
+			return readResp, false, nil
+		}
+
+		consistent := readResp.JSON200.ClaimName == expectedClaimName &&
+			readResp.JSON200.ClaimValue == expectedClaimValue &&
+			readResp.JSON200.Name == expectedName
+
+		return readResp, consistent, nil
 	})
 }
