@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
@@ -224,50 +222,15 @@ func (r *MappingRuleResource) ImportState(ctx context.Context, req resource.Impo
 	resource.ImportStatePassthroughID(ctx, path.Root("mapping_rule_id"), req, resp)
 }
 
-// readMappingRuleWithRetry handles the eventual consistency of fetching a mapping rule by retrying a few times.
+// readMappingRuleWithRetry handles the eventual consistency of fetching a mapping rule by retrying a few times:
+// if a mapping rule was just created, it may not be immediately available through the API.
 func readMappingRuleWithRetry(ctx context.Context, client *camunda.ClientWithResponses, mappingRuleId string) (*camunda.GetMappingRuleResponse, error) {
-	// Reading a mapping rule is eventually consistent: if a mapping rule is just created, it may
-	// not be immediately available through the API. Handle the eventual consistency by retrying a
-	// few times with some delay in between until the mapping rule is found or we timeout.
-	createState := &retry.StateChangeConf{
-		Pending: []string{
-			fmt.Sprintf("%d", http.StatusNotFound),
-		},
+	return waitForConsistency(ctx, fmt.Sprintf("mapping rule %q", mappingRuleId), func() (*camunda.GetMappingRuleResponse, bool, error) {
+		readResp, err := client.GetMappingRuleWithResponse(ctx, mappingRuleId)
+		if err != nil {
+			return nil, false, err
+		}
 
-		Target: []string{
-			fmt.Sprintf("%d", http.StatusOK),
-		},
-
-		// How many times the target state has to be reached to continue.
-		ContinuousTargetOccurence: 1,
-
-		Refresh: func() (any, string, error) {
-			readResp, err := client.GetMappingRuleWithResponse(ctx, mappingRuleId)
-
-			if err != nil {
-				return nil, "", err
-			}
-
-			return readResp, fmt.Sprintf("%d", readResp.StatusCode()), nil
-		},
-
-		// Don't wait too long for the first poll
-		Delay:      1 * time.Second,
-		MinTimeout: 2 * time.Second,
-		// Wait at most this duration before considering the mapping rule has not been found
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := createState.WaitForStateContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("timed out while waiting for mapping rule '%s' to be created: %w", mappingRuleId, err)
-	}
-
-	r, ok := resp.(*camunda.GetMappingRuleResponse)
-	if !ok {
-		// This should not happen
-		return nil, fmt.Errorf("unexpected type for mapping rule read response: %T", resp)
-	}
-
-	return r, nil
+		return readResp, readResp.StatusCode() == http.StatusOK, nil
+	})
 }
