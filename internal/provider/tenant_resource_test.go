@@ -64,6 +64,28 @@ func TestAccTenantResource(t *testing.T) {
 					),
 				},
 			},
+			// Update and Read testing without a description, to exercise the optional
+			// description being cleared on update and read back as null.
+			{
+				Config: providerConfig + testAccTenantResourceConfigNoDescription("tenant1", "Plop Plip"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"camundacluster_tenant.test",
+						tfjsonpath.New("id"),
+						knownvalue.StringExact("tenant1"),
+					),
+					statecheck.ExpectKnownValue(
+						"camundacluster_tenant.test",
+						tfjsonpath.New("name"),
+						knownvalue.StringExact("Plop Plip"),
+					),
+					statecheck.ExpectKnownValue(
+						"camundacluster_tenant.test",
+						tfjsonpath.New("description"),
+						knownvalue.Null(),
+					),
+				},
+			},
 			// Delete testing automatically occurs in TestCase
 		},
 	})
@@ -77,4 +99,13 @@ resource "camundacluster_tenant" "test" {
   description = "%s"
 }
 `, tenantId, name, description)
+}
+
+func testAccTenantResourceConfigNoDescription(tenantId, name string) string {
+	return fmt.Sprintf(`
+resource "camundacluster_tenant" "test" {
+  tenant_id = "%s"
+  name      = "%s"
+}
+`, tenantId, name)
 }
