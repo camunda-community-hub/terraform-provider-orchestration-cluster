@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -18,8 +19,8 @@ func TestAccAuthorizationResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + testAccAuthorizationResourceConfig(),
-				Check:  checkAuthorizationExistsInEngine(),
+				Config: providerConfig + testAccAuthorizationResourceConfig([]string{"READ_PROCESS_DEFINITION"}),
+				Check:  checkAuthorizationExistsInEngine([]string{"READ_PROCESS_DEFINITION"}),
 			},
 			// ImportState testing
 			{
@@ -27,23 +28,32 @@ func TestAccAuthorizationResource(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
+			// Update and Read testing
+			{
+				Config: providerConfig + testAccAuthorizationResourceConfig([]string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}),
+				Check:  checkAuthorizationExistsInEngine([]string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}),
+			},
 		},
 	})
 }
 
-func testAccAuthorizationResourceConfig() string {
-	return `
+func testAccAuthorizationResourceConfig(permissions []string) string {
+	quoted := make([]string, len(permissions))
+	for i, p := range permissions {
+		quoted[i] = fmt.Sprintf("%q", p)
+	}
+	return fmt.Sprintf(`
 resource "camundacluster_authorization" "test" {
   owner_type    = "USER"
   owner_id      = "demo"
   resource_type = "PROCESS_DEFINITION"
-  permissions   = ["READ_PROCESS_DEFINITION"]
+  permissions   = [%s]
   resource_id   = "test-process"
 }
-`
+`, strings.Join(quoted, ", "))
 }
 
-func checkAuthorizationExistsInEngine() resource.TestCheckFunc {
+func checkAuthorizationExistsInEngine(expectedPermissions []string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		client, err := camunda.NewClientWithResponses(testClusterURL)
 		if err != nil {
@@ -60,7 +70,10 @@ func checkAuthorizationExistsInEngine() resource.TestCheckFunc {
 				if err != nil {
 					return nil, false, err
 				}
-				return resp, resp.StatusCode() == 200 && resp.JSON200 != nil, nil
+				if resp.StatusCode() != 200 || resp.JSON200 == nil {
+					return resp, false, nil
+				}
+				return resp, permissionsMatch(resp.JSON200.PermissionTypes, expectedPermissions), nil
 			})
 			if err != nil {
 				return fmt.Errorf("authorization %s not found or not matching in engine: %w", authId, err)
