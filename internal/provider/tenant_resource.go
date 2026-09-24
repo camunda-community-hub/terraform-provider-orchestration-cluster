@@ -64,7 +64,7 @@ func (r *TenantResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Required:            true,
 			},
 			"tenant_id": schema.StringAttribute{
-				MarkdownDescription: "The unique ID for the tenant. Must be 255 characters or less. Can contain letters, numbers, `_`, `-`, `+`, `.`, `@`.",
+				MarkdownDescription: "The unique ID for the tenant. Must be 256 characters or less. Can contain letters, numbers, `_`, `-`, `+`, `.`, `@`.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -77,15 +77,15 @@ func (r *TenantResource) Schema(ctx context.Context, req resource.SchemaRequest,
 	}
 }
 
-// tenantIdValidator validates that a tenant ID is 255 characters or less and only
+// tenantIdValidator validates that a tenant ID is 256 characters or less and only
 // contains letters, numbers, `_`, `-`, `+`, `.` and `@`, as required by the Camunda
 // cluster REST API.
 type tenantIdValidator struct{}
 
-var tenantIdPattern = regexp.MustCompile(`^[A-Za-z0-9_\-+.@]{1,255}$`)
+var tenantIdPattern = regexp.MustCompile(`^[A-Za-z0-9_\-+.@]{1,256}$`)
 
 func (v tenantIdValidator) Description(ctx context.Context) string {
-	return "must be 255 characters or less and contain only letters, numbers, '_', '-', '+', '.' and '@'"
+	return "must be 256 characters or less and contain only letters, numbers, '_', '-', '+', '.' and '@'"
 }
 
 func (v tenantIdValidator) MarkdownDescription(ctx context.Context) string {
@@ -101,7 +101,7 @@ func (v tenantIdValidator) ValidateString(ctx context.Context, req validator.Str
 		resp.Diagnostics.AddAttributeError(
 			req.Path,
 			"Invalid Tenant ID",
-			fmt.Sprintf("tenant_id %q must be 255 characters or less and contain only letters, numbers, '_', '-', '+', '.' and '@'.", req.ConfigValue.ValueString()),
+			fmt.Sprintf("tenant_id %q must be 256 characters or less and contain only letters, numbers, '_', '-', '+', '.' and '@'.", req.ConfigValue.ValueString()),
 		)
 	}
 }

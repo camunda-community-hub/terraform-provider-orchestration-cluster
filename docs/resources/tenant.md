@@ -26,7 +26,7 @@ resource "camundacluster_tenant" "example" {
 ### Required
 
 - `name` (String) The name of the tenant.
-- `tenant_id` (String) The unique ID for the tenant. Must be 255 characters or less. Can contain letters, numbers, `_`, `-`, `+`, `.`, `@`.
+- `tenant_id` (String) The unique ID for the tenant. Must be 256 characters or less. Can contain letters, numbers, `_`, `-`, `+`, `.`, `@`.
 
 ### Optional
 
