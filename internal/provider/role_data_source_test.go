@@ -1,14 +1,21 @@
 package provider
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+
+	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
 
 // TestAccRoleDataSource covers the camundacluster_role data source: the raw
@@ -56,9 +63,13 @@ func TestAccRoleDataSource(t *testing.T) {
 				ExpectError: regexp.MustCompile(`No role found with name`),
 			},
 			// Create two roles sharing the same name to exercise the ambiguous path.
+			// The prerequisite check must wait on /roles/search itself (the same
+			// endpoint the data source's Read queries), not on GetRoleWithResponse:
+			// that is a separate eventually-consistent projection and can be
+			// consistent while search still reflects only one of the two roles.
 			{
 				Config: providerConfig + testAccRoleDuplicateNameResourcesConfig("Duplicate Role Name"),
-				Check:  checkRoleExistsInEngine("Duplicate Role Name"),
+				Check:  waitForRoleSearchDuplicates("Duplicate Role Name"),
 			},
 			// Ambiguous: the name matches more than one role.
 			{
@@ -91,4 +102,49 @@ resource "camundacluster_role" "dup_b" {
   name    = %q
 }
 `, name, name)
+}
+
+// waitForRoleSearchDuplicates polls POST /roles/search - the same
+// search-by-name mechanism RoleDataSource.Read uses - until it returns at
+// least two matches for name. The ambiguous-lookup test step depends on the
+// search index (not a by-ID GET, which is a different, separately eventually
+// consistent projection) actually reflecting both duplicate roles; otherwise
+// the data source's search could still see only one match and the test would
+// pass or fail for the wrong reason.
+func waitForRoleSearchDuplicates(name string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		client, err := camunda.NewClientWithResponses(testClusterURL)
+		if err != nil {
+			return err
+		}
+
+		_, err = waitForConsistency(context.Background(), fmt.Sprintf("role search for name %q to return duplicates", name), func() ([]camunda.RoleResult, bool, error) {
+			filterReq := roleSearchByNameRequest{}
+			filterReq.Filter.Name = name
+
+			bodyBytes, err := json.Marshal(filterReq)
+			if err != nil {
+				return nil, false, err
+			}
+
+			apiResp, err := client.SearchRolesWithBodyWithResponse(context.Background(), "application/json", bytes.NewReader(bodyBytes))
+			if err != nil {
+				return nil, false, err
+			}
+			if apiResp.StatusCode() != http.StatusOK {
+				return nil, false, nil
+			}
+
+			var result roleSearchQueryResult
+			if err := json.Unmarshal(apiResp.Body, &result); err != nil {
+				return nil, false, err
+			}
+
+			return result.Items, len(result.Items) >= 2, nil
+		})
+		if err != nil {
+			return fmt.Errorf("role search for name %q did not return both duplicates: %w", name, err)
+		}
+		return nil
+	}
 }
