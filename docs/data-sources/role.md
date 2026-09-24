@@ -3,12 +3,12 @@
 page_title: "camundacluster_role Data Source - camundacluster"
 subcategory: ""
 description: |-
-  A Camunda cluster role
+  Looks up a Camunda cluster role by name.
 ---
 
 # camundacluster_role (Data Source)
 
-A Camunda cluster role
+Looks up a Camunda cluster role by name.
 
 
 
@@ -17,9 +17,9 @@ A Camunda cluster role
 
 ### Required
 
-- `id` (String) The unique ID of the role.
+- `name` (String) The display name of the role to look up. Must match exactly one role.
 
 ### Read-Only
 
 - `description` (String) The description of the role.
-- `name` (String) The display name of the role.
+- `id` (String) The unique ID of the role.
