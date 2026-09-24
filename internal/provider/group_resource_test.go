@@ -72,15 +72,19 @@ func checkGroupExistsInEngine(groupName string) resource.TestCheckFunc {
 				continue
 			}
 			groupId := rs.Primary.ID
-			resp, err := client.GetGroupWithResponse(context.Background(), groupId)
+
+			_, err := waitForConsistency(context.Background(), fmt.Sprintf("group %q in engine", groupId), func() (*camunda.GetGroupResponse, bool, error) {
+				resp, err := client.GetGroupWithResponse(context.Background(), groupId)
+				if err != nil {
+					return nil, false, err
+				}
+				if resp.StatusCode() != 200 || resp.JSON200 == nil {
+					return resp, false, nil
+				}
+				return resp, resp.JSON200.Name == groupName, nil
+			})
 			if err != nil {
-				return fmt.Errorf("engine API call failed: %w", err)
-			}
-			if resp.StatusCode() != 200 {
-				return fmt.Errorf("group %s not found in engine (HTTP %d)", groupId, resp.StatusCode())
-			}
-			if resp.JSON200 == nil || resp.JSON200.Name != groupName {
-				return fmt.Errorf("group name mismatch: expected %s, got %v", groupName, resp.JSON200)
+				return fmt.Errorf("group %s not found or not matching in engine: %w", groupId, err)
 			}
 			return nil
 		}
