@@ -21,7 +21,7 @@ func TestAccRoleResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + testAccRoleResourceConfig("Test Role 1", ""),
+				Config: providerConfig + testAccRoleResourceConfig("test-role-1", "Test Role 1", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_role.test",
@@ -39,7 +39,7 @@ func TestAccRoleResource(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + testAccRoleResourceConfig("Test Role 2", "A description"),
+				Config: providerConfig + testAccRoleResourceConfig("test-role-1", "Test Role 2", "A description"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_role.test",
@@ -58,20 +58,22 @@ func TestAccRoleResource(t *testing.T) {
 	})
 }
 
-func testAccRoleResourceConfig(name, description string) string {
+func testAccRoleResourceConfig(roleId, name, description string) string {
 	if description == "" {
 		return fmt.Sprintf(`
 resource "camundacluster_role" "test" {
-  name = %q
+  role_id = %q
+  name    = %q
 }
-`, name)
+`, roleId, name)
 	}
 	return fmt.Sprintf(`
 resource "camundacluster_role" "test" {
+  role_id     = %q
   name        = %q
   description = %q
 }
-`, name, description)
+`, roleId, name, description)
 }
 
 func checkRoleExistsInEngine(roleName string) resource.TestCheckFunc {

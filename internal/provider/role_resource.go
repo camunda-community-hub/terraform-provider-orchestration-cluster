@@ -29,6 +29,7 @@ type RoleResource struct {
 
 type RoleResourceModel struct {
 	Id          types.String `tfsdk:"id"`
+	RoleId      types.String `tfsdk:"role_id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
 }
@@ -43,10 +44,17 @@ func (r *RoleResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "The unique ID of the role.",
+				MarkdownDescription: "The unique ID of the role (the role ID).",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"role_id": schema.StringAttribute{
+				MarkdownDescription: "The unique ID for the role.",
+				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"name": schema.StringAttribute{
@@ -87,9 +95,8 @@ func (r *RoleResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	roleId := data.Name.ValueString()
 	request := camunda.CreateRoleJSONRequestBody{
-		RoleId: roleId,
+		RoleId: data.RoleId.ValueString(),
 		Name:   data.Name.ValueString(),
 	}
 	if !data.Description.IsNull() && !data.Description.IsUnknown() {
@@ -114,6 +121,7 @@ func (r *RoleResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	data.Id = types.StringValue(apiResp.JSON201.RoleId)
+	data.RoleId = types.StringValue(apiResp.JSON201.RoleId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
 	if apiResp.JSON201.Description != nil {
 		data.Description = types.StringValue(*apiResp.JSON201.Description)
@@ -134,9 +142,9 @@ func (r *RoleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	apiResp, err := r.client.GetRoleWithResponse(ctx, data.Id.ValueString())
+	apiResp, err := r.client.GetRoleWithResponse(ctx, data.RoleId.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read role '%s', got error: %s", data.Id.ValueString(), err))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read role '%s', got error: %s", data.RoleId.ValueString(), err))
 		return
 	}
 
@@ -146,7 +154,7 @@ func (r *RoleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 
 	if apiResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading role '%s', got HTTP error: %d", data.Id.ValueString(), apiResp.StatusCode()))
+		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading role '%s', got HTTP error: %d", data.RoleId.ValueString(), apiResp.StatusCode()))
 		return
 	}
 
@@ -156,6 +164,7 @@ func (r *RoleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 
 	data.Id = types.StringValue(apiResp.JSON200.RoleId)
+	data.RoleId = types.StringValue(apiResp.JSON200.RoleId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
 	if apiResp.JSON200.Description != nil {
 		data.Description = types.StringValue(*apiResp.JSON200.Description)
@@ -188,7 +197,7 @@ func (r *RoleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		request.Description = &desc
 	}
 
-	apiResp, err := r.client.UpdateRoleWithResponse(ctx, state.Id.ValueString(), request)
+	apiResp, err := r.client.UpdateRoleWithResponse(ctx, state.RoleId.ValueString(), request)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update role, got error: %s", err))
 		return
@@ -205,6 +214,7 @@ func (r *RoleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	data.Id = types.StringValue(apiResp.JSON200.RoleId)
+	data.RoleId = types.StringValue(apiResp.JSON200.RoleId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
 	if apiResp.JSON200.Description != nil {
 		data.Description = types.StringValue(*apiResp.JSON200.Description)
@@ -223,7 +233,7 @@ func (r *RoleResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	apiResp, err := r.client.DeleteRoleWithResponse(ctx, data.Id.ValueString())
+	apiResp, err := r.client.DeleteRoleWithResponse(ctx, data.RoleId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete role, got error: %s", err))
 		return
@@ -236,5 +246,5 @@ func (r *RoleResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 }
 
 func (r *RoleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("role_id"), req, resp)
 }
