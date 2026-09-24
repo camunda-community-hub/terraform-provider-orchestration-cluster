@@ -86,6 +86,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_property_name")},
 				},
 				Validators: []validator.String{
+					nonEmptyStringValidator{},
 					mutuallyExclusiveStringValidator{otherAttribute: path.Root("resource_property_name")},
 				},
 			},
@@ -98,6 +99,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_id")},
 				},
 				Validators: []validator.String{
+					nonEmptyStringValidator{},
 					mutuallyExclusiveStringValidator{otherAttribute: path.Root("resource_id")},
 				},
 			},
