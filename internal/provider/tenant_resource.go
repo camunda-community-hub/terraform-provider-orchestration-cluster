@@ -1,7 +1,9 @@
 package provider
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -217,11 +219,24 @@ func (r *TenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	request := camunda.UpdateTenantJSONRequestBody{
+	// tenantUpdateBody mirrors camunda.TenantUpdateRequest but without `omitempty` on
+	// Description: the API is a PUT (full replace), and an omitted key is treated by the
+	// server as "leave the existing value unchanged" rather than "clear it". Sending an
+	// explicit JSON null is required to actually clear an existing description.
+	type tenantUpdateBody struct {
+		Description *string `json:"description"`
+		Name        string  `json:"name"`
+	}
+	body, err := json.Marshal(tenantUpdateBody{
 		Description: data.Description.ValueStringPointer(),
 		Name:        data.Name.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to encode tenant update request, got error: %s", err))
+		return
 	}
-	apiResp, err := r.client.UpdateTenantWithResponse(ctx, data.TenantId.ValueString(), request)
+
+	apiResp, err := r.client.UpdateTenantWithBodyWithResponse(ctx, data.TenantId.ValueString(), "application/json", bytes.NewReader(body))
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update tenant, got error: %s", err))
