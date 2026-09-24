@@ -26,7 +26,7 @@ resource "camundacluster_tenant" "example" {
 ### Required
 
 - `name` (String) The name of the tenant.
-- `tenant_id` (String) The unique ID for the tenant. Must be 256 characters or less. Can contain letters, numbers, `_`, `-`, `+`, `.`, `@`.
+- `tenant_id` (String) The unique ID for the tenant. Must be 31 characters or less. Can contain letters, numbers, `_`, `-`, `.`. Note: the tenant-creation REST API itself accepts a looser format (up to 256 characters, also allowing `+` and `@`), but a tenant ID actually used to scope process orchestration operations (starting process instances, publishing messages, broadcasting signals, evaluating decisions) is validated by the Zeebe gateway against this stricter rule. A tenant created outside these bounds would exist but be unusable for orchestration, so this provider enforces the stricter, practically-usable format at creation time.
 
 ### Optional
 
