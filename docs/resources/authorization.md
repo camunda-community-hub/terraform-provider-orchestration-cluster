@@ -29,3 +29,4 @@ A Camunda cluster authorization
 ### Read-Only
 
 - `id` (String) The unique key of the authorization (string-encoded int64).
+- `resource_property_name` (String) The name of the resource property the permission relates to (mutually exclusive with `resource_id`). This provider only creates and updates ID-based authorizations, so this attribute is populated only when reading or importing a property-based authorization that was created outside of this provider; it cannot be configured.

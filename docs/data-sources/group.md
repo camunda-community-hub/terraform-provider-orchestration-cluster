@@ -3,12 +3,12 @@
 page_title: "camundacluster_group Data Source - camundacluster"
 subcategory: ""
 description: |-
-  A Camunda cluster group
+  Looks up a Camunda cluster group by name.
 ---
 
 # camundacluster_group (Data Source)
 
-A Camunda cluster group
+Looks up a Camunda cluster group by name.
 
 
 
@@ -17,8 +17,8 @@ A Camunda cluster group
 
 ### Required
 
-- `id` (String) The unique ID of the group.
+- `name` (String) The display name of the group to look up. Must match exactly one group.
 
 ### Read-Only
 
-- `name` (String) The display name of the group.
+- `id` (String) The unique ID of the group.

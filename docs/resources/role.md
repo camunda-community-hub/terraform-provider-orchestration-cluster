@@ -18,6 +18,7 @@ A Camunda cluster role
 ### Required
 
 - `name` (String) The display name of the role.
+- `role_id` (String) The unique ID for the role.
 
 ### Optional
 
@@ -25,4 +26,4 @@ A Camunda cluster role
 
 ### Read-Only
 
-- `id` (String) The unique ID of the role.
+- `id` (String) The unique ID of the role (the role ID).
