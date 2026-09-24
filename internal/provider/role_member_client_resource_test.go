@@ -40,12 +40,20 @@ func TestAccRoleMemberClientResource_driftDetection(t *testing.T) {
 				Config: providerConfig + testAccRoleMemberClientResourceConfig(),
 				Check:  checkRoleClientAssignmentExistsInEngine(),
 			},
-			// Unassign the client out-of-band, then re-plan/apply the same
-			// config and expect Terraform to detect the drift and plan to
-			// recreate the now-missing resource.
+			// Unassign the client out-of-band, then only refresh state (not
+			// apply) against the same config. A Config step here is wrong:
+			// its own apply would execute whatever diff its implicit
+			// refresh detects, silently recreating the assignment before
+			// the framework's mandatory post-apply refresh-plan check runs
+			// - which then finds nothing to do and fails with "Expected a
+			// non-empty plan, but got an empty refresh plan" deterministically,
+			// no matter how long PreConfig waits for consistency. RefreshState
+			// only refreshes and plans, never applies, so the detected drift
+			// (a plan to recreate the now-missing resource) is what
+			// ExpectNonEmptyPlan actually gets to assert on.
 			{
 				PreConfig:          unassignRoleMemberClientOutOfBand("rolememberclientrole", "test-client-for-role"),
-				Config:             providerConfig + testAccRoleMemberClientResourceConfig(),
+				RefreshState:       true,
 				ExpectNonEmptyPlan: true,
 			},
 		},
