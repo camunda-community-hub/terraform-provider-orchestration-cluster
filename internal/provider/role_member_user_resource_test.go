@@ -36,7 +36,8 @@ resource "camundacluster_user" "rolememberuser" {
 }
 
 resource "camundacluster_role" "rolememberrole" {
-  name = "rolememberrole"
+  role_id = "rolememberrole"
+  name    = "rolememberrole"
 }
 
 resource "camundacluster_role_member_user" "test" {

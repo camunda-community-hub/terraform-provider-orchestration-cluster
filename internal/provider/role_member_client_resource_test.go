@@ -29,7 +29,8 @@ func TestAccRoleMemberClientResource(t *testing.T) {
 func testAccRoleMemberClientResourceConfig() string {
 	return `
 resource "camundacluster_role" "rolememberclientrole" {
-  name = "rolememberclientrole"
+  role_id = "rolememberclientrole"
+  name    = "rolememberclientrole"
 }
 
 resource "camundacluster_role_member_client" "test" {

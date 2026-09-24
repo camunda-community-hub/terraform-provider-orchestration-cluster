@@ -29,7 +29,8 @@ func TestAccGroupMemberClientResource(t *testing.T) {
 func testAccGroupMemberClientResourceConfig() string {
 	return `
 resource "camundacluster_group" "clientmembergroup" {
-  name = "clientmembergroup"
+  group_id = "clientmembergroup"
+  name     = "clientmembergroup"
 }
 
 resource "camundacluster_group_member_client" "test" {
