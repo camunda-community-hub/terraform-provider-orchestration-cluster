@@ -292,7 +292,14 @@ func readTenantWithRetry(ctx context.Context, client *camunda.ClientWithResponse
 			return nil, false, err
 		}
 
-		return readResp, readResp.StatusCode() == http.StatusOK, nil
+		switch readResp.StatusCode() {
+		case http.StatusOK:
+			return readResp, true, nil
+		case http.StatusNotFound:
+			return readResp, false, nil
+		default:
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+		}
 	})
 }
 
@@ -307,7 +314,15 @@ func readTenantUntilConsistent(ctx context.Context, client *camunda.ClientWithRe
 			return nil, false, err
 		}
 
-		if readResp.StatusCode() != http.StatusOK || readResp.JSON200 == nil {
+		if readResp.StatusCode() == http.StatusNotFound {
+			return readResp, false, nil
+		}
+
+		if readResp.StatusCode() != http.StatusOK {
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+		}
+
+		if readResp.JSON200 == nil {
 			return readResp, false, nil
 		}
 
