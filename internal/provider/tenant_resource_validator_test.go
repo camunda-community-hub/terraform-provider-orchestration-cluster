@@ -12,10 +12,12 @@ import (
 
 // TestTenantIdValidator_ValidateString is a pure unit test for tenantIdValidator: it
 // requires no acceptance-test setup (TF_ACC, a live cluster) since it only exercises the
-// validation logic directly. It covers the maximum accepted length (256, per the
-// TenantId schema's maxLength in spec/8.9/bundled-api.yaml), one character over that
-// boundary, and the full set of characters the same schema's `pattern` field allows
-// (letters, digits, '_', '-', '+', '.', '@').
+// validation logic directly. It covers the maximum accepted length (31, matching the
+// Zeebe gateway's tenant ID validation used for process orchestration operations, which
+// is stricter than the tenant-creation REST API's own 256-character/`+`/`@`-inclusive
+// contract), one character over that boundary, and the full set of characters this
+// stricter rule allows (letters, digits, '_', '-', '.') as well as ones it now rejects
+// ('+', '@') despite the creation endpoint itself accepting them.
 func TestTenantIdValidator_ValidateString(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -28,24 +30,24 @@ func TestTenantIdValidator_ValidateString(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "max length accepted (256 chars)",
-			value:   strings.Repeat("a", 256),
+			name:    "max length accepted (31 chars)",
+			value:   strings.Repeat("a", 31),
 			wantErr: false,
 		},
 		{
-			name:    "one character over max length (257 chars)",
-			value:   strings.Repeat("a", 257),
+			name:    "one character over max length (32 chars)",
+			value:   strings.Repeat("a", 32),
 			wantErr: true,
 		},
 		{
-			name:    "plus sign accepted per API pattern",
+			name:    "plus sign rejected despite creation API allowing it",
 			value:   "tenant+1",
-			wantErr: false,
+			wantErr: true,
 		},
 		{
-			name:    "at sign accepted per API pattern",
+			name:    "at sign rejected despite creation API allowing it",
 			value:   "tenant@example",
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "dot and underscore and hyphen accepted",

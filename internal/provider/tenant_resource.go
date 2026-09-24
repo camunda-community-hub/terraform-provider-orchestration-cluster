@@ -64,8 +64,13 @@ func (r *TenantResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Required:            true,
 			},
 			"tenant_id": schema.StringAttribute{
-				MarkdownDescription: "The unique ID for the tenant. Must be 256 characters or less. Can contain letters, numbers, `_`, `-`, `+`, `.`, `@`.",
-				Required:            true,
+				MarkdownDescription: "The unique ID for the tenant. Must be 31 characters or less. Can contain letters, numbers, `_`, `-`, `.`. " +
+					"Note: the tenant-creation REST API itself accepts a looser format (up to 256 characters, also allowing `+` and `@`), " +
+					"but a tenant ID actually used to scope process orchestration operations (starting process instances, publishing " +
+					"messages, broadcasting signals, evaluating decisions) is validated by the Zeebe gateway against this stricter rule. " +
+					"A tenant created outside these bounds would exist but be unusable for orchestration, so this provider enforces the " +
+					"stricter, practically-usable format at creation time.",
+				Required: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -77,15 +82,19 @@ func (r *TenantResource) Schema(ctx context.Context, req resource.SchemaRequest,
 	}
 }
 
-// tenantIdValidator validates that a tenant ID is 256 characters or less and only
-// contains letters, numbers, `_`, `-`, `+`, `.` and `@`, as required by the Camunda
-// cluster REST API.
+// tenantIdValidator validates that a tenant ID is 31 characters or less and only
+// contains letters, numbers, `_`, `-` and `.`. This is stricter than the tenant-creation
+// REST API's own contract (256 characters, also allowing `+` and `@`), matching instead
+// the Zeebe gateway's tenant ID validation used for process orchestration operations
+// (starting process instances, publishing messages, broadcasting signals, evaluating
+// decisions). A tenant created with an ID outside this stricter format would be created
+// successfully but could not actually be used to scope those operations.
 type tenantIdValidator struct{}
 
-var tenantIdPattern = regexp.MustCompile(`^[A-Za-z0-9_\-+.@]{1,256}$`)
+var tenantIdPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,31}$`)
 
 func (v tenantIdValidator) Description(ctx context.Context) string {
-	return "must be 256 characters or less and contain only letters, numbers, '_', '-', '+', '.' and '@'"
+	return "must be 31 characters or less and contain only letters, numbers, '_', '-' and '.'"
 }
 
 func (v tenantIdValidator) MarkdownDescription(ctx context.Context) string {
@@ -101,7 +110,7 @@ func (v tenantIdValidator) ValidateString(ctx context.Context, req validator.Str
 		resp.Diagnostics.AddAttributeError(
 			req.Path,
 			"Invalid Tenant ID",
-			fmt.Sprintf("tenant_id %q must be 256 characters or less and contain only letters, numbers, '_', '-', '+', '.' and '@'.", req.ConfigValue.ValueString()),
+			fmt.Sprintf("tenant_id %q must be 31 characters or less and contain only letters, numbers, '_', '-' and '.'.", req.ConfigValue.ValueString()),
 		)
 	}
 }
