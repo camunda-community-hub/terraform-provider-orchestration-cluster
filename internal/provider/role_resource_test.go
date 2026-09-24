@@ -85,15 +85,19 @@ func checkRoleExistsInEngine(roleName string) resource.TestCheckFunc {
 				continue
 			}
 			roleId := rs.Primary.ID
-			resp, err := client.GetRoleWithResponse(context.Background(), roleId)
+
+			_, err := waitForConsistency(context.Background(), fmt.Sprintf("role %q in engine", roleId), func() (*camunda.GetRoleResponse, bool, error) {
+				resp, err := client.GetRoleWithResponse(context.Background(), roleId)
+				if err != nil {
+					return nil, false, err
+				}
+				if resp.StatusCode() != 200 || resp.JSON200 == nil {
+					return resp, false, nil
+				}
+				return resp, resp.JSON200.Name == roleName, nil
+			})
 			if err != nil {
-				return fmt.Errorf("engine API call failed: %w", err)
-			}
-			if resp.StatusCode() != 200 {
-				return fmt.Errorf("role %s not found in engine (HTTP %d)", roleId, resp.StatusCode())
-			}
-			if resp.JSON200 == nil || resp.JSON200.Name != roleName {
-				return fmt.Errorf("role name mismatch: expected %s, got %v", roleName, resp.JSON200)
+				return fmt.Errorf("role %s not found or not matching in engine: %w", roleId, err)
 			}
 			return nil
 		}
