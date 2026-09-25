@@ -119,9 +119,9 @@ func TestMutuallyExclusiveStringValidator_ValidateString(t *testing.T) {
 		{
 			// mutuallyExclusiveStringValidator itself still treats an empty sibling as
 			// "not set" for exclusivity purposes, so it does not reject this on its own; the
-			// schema now also applies nonEmptyStringValidator to both attributes, which
+			// schema now also applies nonEmptyScopeValidator to both attributes, which
 			// independently rejects an explicitly configured empty string (see
-			// TestNonEmptyStringValidator_RejectsEmptyScopeAttributes below). An empty string
+			// TestNonEmptyScopeValidator_RejectsEmptyScopeAttributes below). An empty string
 			// is therefore no longer a valid overall configuration, even though this
 			// validator alone still allows it.
 			name:                 "resource_property_name empty string, resource_id set",
@@ -168,14 +168,16 @@ func TestMutuallyExclusiveStringValidator_ValidateString(t *testing.T) {
 	}
 }
 
-// TestNonEmptyStringValidator_RejectsEmptyScopeAttributes verifies that resource_id and
+// TestNonEmptyScopeValidator_RejectsEmptyScopeAttributes verifies that resource_id and
 // resource_property_name reject an explicitly configured empty string via
-// nonEmptyStringValidator (defined in tenant_resource.go and reused here), independently of
-// mutuallyExclusiveStringValidator: an empty scope value used to be silently treated as
+// nonEmptyScopeValidator (defined in this file, not the tenant-specific
+// nonEmptyStringValidator -- the schema uses nonEmptyScopeValidator so its
+// attribute-path-aware diagnostic reads correctly on either scope attribute), independently
+// of mutuallyExclusiveStringValidator: an empty scope value used to be silently treated as
 // "not configured" by resolveAuthorizationRequestVariant, defaulting resource_id to "*" and
 // producing a persistent diff against the user's explicitly configured "". It must now be
 // rejected outright, while null (omitted) and unknown values still pass.
-func TestNonEmptyStringValidator_RejectsEmptyScopeAttributes(t *testing.T) {
+func TestNonEmptyScopeValidator_RejectsEmptyScopeAttributes(t *testing.T) {
 	tests := []struct {
 		name    string
 		path    path.Path
@@ -200,7 +202,7 @@ func TestNonEmptyStringValidator_RejectsEmptyScopeAttributes(t *testing.T) {
 			}
 			resp := &validator.StringResponse{}
 
-			nonEmptyStringValidator{}.ValidateString(context.Background(), req, resp)
+			nonEmptyScopeValidator{}.ValidateString(context.Background(), req, resp)
 
 			gotErr := resp.Diagnostics.HasError()
 			if gotErr != tt.wantErr {
