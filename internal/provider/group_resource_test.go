@@ -54,6 +54,19 @@ func TestAccGroupResource(t *testing.T) {
 				},
 				Check: checkGroupExistsInEngine("Test Group 2"),
 			},
+			// Clear description by omitting it from config: description must go back to null,
+			// not linger at its previously configured value.
+			{
+				Config: providerConfig + testAccGroupResourceConfig("test-group-1", "Test Group 2", ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"camundacluster_group.test",
+						tfjsonpath.New("description"),
+						knownvalue.Null(),
+					),
+				},
+				Check: checkGroupExistsInEngine("Test Group 2"),
+			},
 		},
 	})
 }
