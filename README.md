@@ -73,6 +73,39 @@ resource "camundacluster_user" "alice" {
 | `camundacluster_tenant` | Tenant |
 | `camundacluster_cluster_variable` | Cluster variable |
 
+## Eventual consistency
+
+Every mutating endpoint (`POST`/`PUT`/`DELETE`) of the orchestration cluster REST API is
+strongly consistent: once a request succeeds, the change has been applied. However, **every
+`GET` and `/search` endpoint is eventually consistent** — they read from a separate,
+asynchronously-updated projection, not the mutation's own write path. A read performed
+immediately after a successful create, update, or delete can therefore still return the
+*pre-mutation* state for a short time:
+
+- A `GET` right after a successful `POST` can 404 even though the resource was created.
+- A `GET` right after a successful `PUT` can return the *old* field values.
+- A `GET`/search right after a successful `DELETE` (or an unassignment) can still report the
+  resource/membership as present.
+
+This matters here because Terraform relies on exactly these reads: every resource's `Create`
+and `Update` re-reads the resource afterward to populate computed state, and Terraform's own
+post-apply refresh calls `Read` again right after `Create`/`Update` return. A naive
+`Create`/`Update`/`Read` that trusts the first response back from a `GET`/search will
+intermittently see stale data — surfacing as flaky `terraform apply` failures (a resource
+Terraform just created appearing to not exist, an update appearing not to have taken effect,
+or a just-deleted assignment still showing up on the next plan) that are hard to reproduce
+locally and easy to mistake for a different bug.
+
+**Every resource and data source in this provider must account for this** rather than issuing
+a single `GET`/search and trusting the result immediately after a mutation. The shared
+`waitForConsistency` helper (`internal/provider/consistency.go`) exists for exactly this: it
+polls a read with backoff until it reflects the expected post-mutation state (or a bounded
+timeout elapses), and callers only need to supply the small closure describing what "expected"
+means for their case. See `internal/provider/tenant_resource.go`'s `readTenantWithRetry`
+(post-create) and `readTenantUntilConsistent` (post-update) for the canonical pattern to
+follow when adding a new resource; several other resources in `internal/provider/` follow the
+same shape for their own create/update/delete paths.
+
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
