@@ -22,6 +22,12 @@ func TestAccGroupMemberUserResource(t *testing.T) {
 				Config: providerConfig + testAccGroupMemberUserResourceConfig(),
 				Check:  checkGroupUserAssignmentExistsInEngine("membertestgroup", "memberuser1"),
 			},
+			// ImportState testing
+			{
+				ResourceName:      "camundacluster_group_member_user.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
 		},
 	})
 }
