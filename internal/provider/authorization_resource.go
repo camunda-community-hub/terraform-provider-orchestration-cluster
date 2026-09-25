@@ -83,7 +83,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
-					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_property_name")},
+					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_property_name"), defaultValue: "*"},
 				},
 				Validators: []validator.String{
 					nonEmptyScopeValidator{},
@@ -96,7 +96,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
-					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_id")},
+					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_id"), defaultValue: noDefaultScopeValue},
 				},
 				Validators: []validator.String{
 					nonEmptyScopeValidator{},
@@ -178,6 +178,12 @@ func (v nonEmptyScopeValidator) ValidateString(ctx context.Context, req validato
 	}
 }
 
+// noDefaultScopeValue is the defaultValue sentinel for a scope attribute that has no
+// non-null default (resource_property_name): only req.StateValue.IsNull() counts as "already
+// at default" for such an attribute, since it never has a meaningful non-null default value
+// the way resource_id has "*".
+const noDefaultScopeValue = ""
+
 // authorizationScopePlanModifier implements the cross-attribute plan-modifier logic shared by
 // resource_id and resource_property_name. Both are Optional+Computed and mutually exclusive,
 // so a bare stringplanmodifier.UseStateForUnknown() on each would restore the OMITTED
@@ -185,17 +191,30 @@ func (v nonEmptyScopeValidator) ValidateString(ctx context.Context, req validato
 // the other scope, producing an inconsistent plan where both scopes appear populated (and
 // causing resolveAuthorizationRequestVariant to resolve the wrong variant in one of the two
 // transition directions). This modifier instead only restores prior state when neither
-// attribute is configured (the "defaults to wildcard" case, where nothing about scope is
-// changing); when this attribute is omitted but the sibling IS configured, it plans an
-// explicit null so the abandoned scope's stale value doesn't linger in the plan.
+// attribute is configured AND the prior state already represents this attribute's own
+// "unused/default" state (see defaultValue below) -- meaning nothing about scope is actually
+// changing. When this attribute is omitted but the sibling IS configured, it plans an
+// explicit null so the abandoned scope's stale value doesn't linger in the plan. When both
+// attributes are omitted but the prior state held a real, explicit value for this attribute
+// (i.e. removing a previously configured scope to fall back to the documented default), it
+// plans unknown so Create/Update resolves the true default and the plan doesn't silently keep
+// the removed scope.
 type authorizationScopePlanModifier struct {
 	siblingAttribute path.Path
+
+	// defaultValue is this attribute's own "value when unused" -- "*" for resource_id, or
+	// noDefaultScopeValue (empty string sentinel) for resource_property_name, which has no
+	// non-null default and is only ever "unused" when null.
+	defaultValue string
 }
 
 func (m authorizationScopePlanModifier) Description(ctx context.Context) string {
 	return fmt.Sprintf("Preserves the prior state value when this attribute and %s are both omitted from "+
-		"configuration. When this attribute is omitted but %s is configured, plans an explicit null instead, "+
-		"so switching between the two scopes doesn't retain a stale value from the abandoned scope.",
+		"configuration and the prior state already reflects this attribute's default (unused) value. When this "+
+		"attribute is omitted but %s is configured, plans an explicit null instead, so switching between the two "+
+		"scopes doesn't retain a stale value from the abandoned scope. When both are omitted but the prior state "+
+		"held a real, explicit value for this attribute, plans unknown so the documented default is resolved "+
+		"during apply instead of preserving the removed scope.",
 		m.siblingAttribute, m.siblingAttribute)
 }
 
@@ -232,10 +251,36 @@ func (m authorizationScopePlanModifier) PlanModifyString(ctx context.Context, re
 	}
 
 	if siblingConfigValue.IsNull() {
-		// Neither scope attribute is configured: this is the "default to wildcard" case, and
-		// nothing about scope is changing, so behave like UseStateForUnknown and restore the
-		// prior state value.
-		resp.PlanValue = req.StateValue
+		// Neither scope attribute is configured. If the prior state for THIS attribute already
+		// reflects its own "unused/default" value, nothing about scope is actually changing, so
+		// behave like UseStateForUnknown and restore the prior state value.
+		//
+		// For an attribute with no non-null default (resource_property_name, defaultValue ==
+		// noDefaultScopeValue), null IS that default: it's a stable "unused" state regardless of
+		// what the sibling attribute is doing. For an attribute WITH a non-null default
+		// (resource_id, defaultValue "*"), a null state does NOT count as already-default: given
+		// resourceId/resourcePropertyName are mutually exclusive and one of them always resolves
+		// to a concrete value, resource_id can only be null in state because the sibling
+		// (resource_property_name) was previously active -- i.e. a real scope switch away from
+		// property-based is in progress, not a no-op. Only an already-concrete "*" is a true no-op
+		// for resource_id.
+		var alreadyAtDefault bool
+		if m.defaultValue == noDefaultScopeValue {
+			alreadyAtDefault = req.StateValue.IsNull()
+		} else {
+			alreadyAtDefault = !req.StateValue.IsNull() && req.StateValue.ValueString() == m.defaultValue
+		}
+		if alreadyAtDefault {
+			resp.PlanValue = req.StateValue
+			return
+		}
+
+		// The prior state held a real, explicit value for this attribute, and the user has now
+		// removed both scope attributes from config, wanting the documented default. Restoring
+		// req.StateValue here would silently keep the removed scope instead of transitioning to
+		// the default, so plan unknown instead: Create/Update resolves the true default value,
+		// and the subsequent consistency-wait re-read populates the correct final state.
+		resp.PlanValue = types.StringUnknown()
 		return
 	}
 
