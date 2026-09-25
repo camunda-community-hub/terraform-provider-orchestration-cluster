@@ -30,7 +30,7 @@ resource "camundacluster_role" "example" {
 
 ### Optional
 
-- `description` (String) The description of the role.
+- `description` (String) The description of the role. Omit this attribute (or set it to `null`) to indicate no description.
 
 ### Read-Only
 

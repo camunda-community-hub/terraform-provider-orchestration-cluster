@@ -54,6 +54,19 @@ func TestAccRoleResource(t *testing.T) {
 				},
 				Check: checkRoleExistsInEngine("Test Role 2"),
 			},
+			// Clear description by omitting it from config: description must go back to null,
+			// not linger at its previously configured value.
+			{
+				Config: providerConfig + testAccRoleResourceConfig("test-role-1", "Test Role 2", ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"camundacluster_role.test",
+						tfjsonpath.New("description"),
+						knownvalue.Null(),
+					),
+				},
+				Check: checkRoleExistsInEngine("Test Role 2"),
+			},
 		},
 	})
 }
