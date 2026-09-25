@@ -86,7 +86,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_property_name")},
 				},
 				Validators: []validator.String{
-					nonEmptyStringValidator{},
+					nonEmptyScopeValidator{},
 					mutuallyExclusiveStringValidator{otherAttribute: path.Root("resource_property_name")},
 				},
 			},
@@ -99,7 +99,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 					authorizationScopePlanModifier{siblingAttribute: path.Root("resource_id")},
 				},
 				Validators: []validator.String{
-					nonEmptyStringValidator{},
+					nonEmptyScopeValidator{},
 					mutuallyExclusiveStringValidator{otherAttribute: path.Root("resource_id")},
 				},
 			},
@@ -145,6 +145,37 @@ func (v mutuallyExclusiveStringValidator) ValidateString(ctx context.Context, re
 		"Conflicting Attributes",
 		fmt.Sprintf("%s and %s are mutually exclusive; set at most one of them.", req.Path, v.otherAttribute),
 	)
+}
+
+// nonEmptyScopeValidator rejects an explicitly configured empty string on resource_id or
+// resource_property_name, while still allowing null (attribute omitted) and unknown values
+// through. It exists so an empty string configured for one of these scope attributes isn't
+// silently treated as "unset" by resolveAuthorizationRequestVariant. Unlike
+// nonEmptyStringValidator (tenant_resource.go), which hardcodes a description-specific
+// diagnostic, this validator derives its message from req.Path so it reads correctly on
+// whichever of the two attributes it is attached to.
+type nonEmptyScopeValidator struct{}
+
+func (v nonEmptyScopeValidator) Description(ctx context.Context) string {
+	return "must not be an empty string; omit the attribute (or set it to null) instead"
+}
+
+func (v nonEmptyScopeValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v nonEmptyScopeValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	if req.ConfigValue.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Value",
+			fmt.Sprintf("%s must not be an empty string; omit the attribute (or set it to null) instead.", req.Path),
+		)
+	}
 }
 
 // authorizationScopePlanModifier implements the cross-attribute plan-modifier logic shared by
