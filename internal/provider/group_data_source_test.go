@@ -22,12 +22,11 @@ import (
 // successful name lookup, the zero-match "Not Found" error, and the
 // multiple-match "Ambiguous Lookup" error.
 //
-// group_data_source.go's Read has no retry/consistency handling of its own
-// around the search call, and the search index is only eventually
-// consistent. So each lookup here runs in a TestStep that comes after the
-// group(s) it looks up were created (and confirmed to exist) in an earlier
-// step, rather than in the same apply as the create, to avoid racing the
-// search index.
+// group_data_source.go's Read polls the eventually consistent search endpoint via
+// waitForConsistency, so a lookup racing a just-created group is handled. Each lookup here
+// still runs in a TestStep that comes after the group(s) it looks up were created (and
+// confirmed to exist) in an earlier step, rather than in the same apply as the create, so
+// the zero-match and multiple-match cases below exercise a stable, known set of groups.
 func TestAccGroupDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
