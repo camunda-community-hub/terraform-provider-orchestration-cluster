@@ -30,7 +30,7 @@ resource "camundacluster_group" "example" {
 
 ### Optional
 
-- `description` (String) The description of the group.
+- `description` (String) The description of the group. Omit this attribute (or set it to `null`) to indicate no description.
 
 ### Read-Only
 
