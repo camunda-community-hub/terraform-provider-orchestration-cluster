@@ -253,7 +253,7 @@ func (r *RoleResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	if apiResp.StatusCode() != http.StatusNoContent {
+	if apiResp.StatusCode() != http.StatusNoContent && apiResp.StatusCode() != http.StatusNotFound {
 		resp.Diagnostics.AddError("Not Deleted", fmt.Sprintf("Error while deleting role, got HTTP error: %d", apiResp.StatusCode()))
 		return
 	}

@@ -450,7 +450,7 @@ func (r *AuthorizationResource) Delete(ctx context.Context, req resource.DeleteR
 		return
 	}
 
-	if apiResp.StatusCode() != http.StatusNoContent {
+	if apiResp.StatusCode() != http.StatusNoContent && apiResp.StatusCode() != http.StatusNotFound {
 		resp.Diagnostics.AddError("Not Deleted", fmt.Sprintf("Error while deleting authorization, got HTTP error: %d", apiResp.StatusCode()))
 		return
 	}
