@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -17,6 +19,7 @@ import (
 )
 
 var _ resource.Resource = &GroupMemberUserResource{}
+var _ resource.ResourceWithImportState = &GroupMemberUserResource{}
 
 func NewGroupMemberUserResource() resource.Resource {
 	return &GroupMemberUserResource{}
@@ -42,7 +45,7 @@ func (r *GroupMemberUserResource) Schema(ctx context.Context, req resource.Schem
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "Composite ID of the assignment (group_id/user_id).",
+				MarkdownDescription: "Composite ID of the assignment (`group_id/user_id`). Also used as the import ID: `terraform import camundacluster_group_member_user.example <group_id>/<user_id>`.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -206,6 +209,21 @@ func searchAllGroupUsers(ctx context.Context, client *camunda.ClientWithResponse
 		cursor = *page.Page.EndCursor
 	}
 	return false, nil
+}
+
+func (r *GroupMemberUserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			fmt.Sprintf("Expected import ID in the format <group_id>/<user_id>, got: %q", req.ID),
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("group_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("user_id"), parts[1])...)
 }
 
 func (r *GroupMemberUserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
