@@ -7,7 +7,10 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
@@ -32,6 +35,16 @@ func TestAccAuthorizationResource(t *testing.T) {
 			{
 				Config: providerConfig + testAccAuthorizationResourceConfig([]string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}),
 				Check:  checkAuthorizationExistsInEngine([]string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"camundacluster_authorization.test",
+						tfjsonpath.New("permissions"),
+						knownvalue.SetExact([]knownvalue.Check{
+							knownvalue.StringExact("READ_PROCESS_DEFINITION"),
+							knownvalue.StringExact("CREATE_PROCESS_INSTANCE"),
+						}),
+					),
+				},
 			},
 		},
 	})
