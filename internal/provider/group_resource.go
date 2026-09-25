@@ -253,7 +253,7 @@ func (r *GroupResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		return
 	}
 
-	if apiResp.StatusCode() != http.StatusNoContent {
+	if apiResp.StatusCode() != http.StatusNoContent && apiResp.StatusCode() != http.StatusNotFound {
 		resp.Diagnostics.AddError("Not Deleted", fmt.Sprintf("Error while deleting group, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
 		return
 	}
