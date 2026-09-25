@@ -103,44 +103,52 @@ func (d *RoleDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 
 	name := data.Name.ValueString()
 
-	filterReq := roleSearchByNameRequest{}
-	filterReq.Filter.Name = name
+	// POST /roles/search is eventually consistent: a role created earlier in the same
+	// apply may not be searchable yet even though its own create already completed. Poll
+	// while the search reports zero matches, rather than converting the first empty
+	// response directly into "Not Found" -- but don't retry on 1 (a real match) or on 2+
+	// (a genuine ambiguous-name condition, not a consistency issue). The request body is
+	// re-marshaled and a fresh reader constructed on every attempt, since an io.Reader
+	// can't be replayed after being consumed by a previous attempt.
+	items, err := waitForConsistency(ctx, fmt.Sprintf("role named %q", name), func() ([]camunda.RoleResult, bool, error) {
+		filterReq := roleSearchByNameRequest{}
+		filterReq.Filter.Name = name
 
-	bodyBytes, err := json.Marshal(filterReq)
+		bodyBytes, err := json.Marshal(filterReq)
+		if err != nil {
+			return nil, false, fmt.Errorf("unable to encode role search request: %w", err)
+		}
+
+		apiResp, err := d.client.SearchRolesWithBodyWithResponse(ctx, "application/json", bytes.NewReader(bodyBytes))
+		if err != nil {
+			return nil, false, err
+		}
+
+		if apiResp.StatusCode() != http.StatusOK {
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body)
+		}
+
+		var result roleSearchQueryResult
+		if err := json.Unmarshal(apiResp.Body, &result); err != nil {
+			return nil, false, fmt.Errorf("unable to parse role search response: %w", err)
+		}
+
+		return result.Items, len(result.Items) > 0, nil
+	})
+	// waitForConsistency only reports "ready" once at least one match is found, so an error
+	// here means the search never returned any match within the timeout -- a real "not
+	// found" (or a persistent hard error, whose detail is still included in the message).
 	if err != nil {
-		resp.Diagnostics.AddError("Encoding Error", fmt.Sprintf("Unable to encode role search request: %s", err))
+		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("No role found with name '%s': %s", name, err))
 		return
 	}
 
-	apiResp, err := d.client.SearchRolesWithBodyWithResponse(ctx, "application/json", bytes.NewReader(bodyBytes))
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to search for role '%s', got error: %s", name, err))
+	if len(items) > 1 {
+		resp.Diagnostics.AddError("Ambiguous Lookup", fmt.Sprintf("Name '%s' matched %d roles; role names are not guaranteed unique.", name, len(items)))
 		return
 	}
 
-	if apiResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Search Error", fmt.Sprintf("Error while searching for role '%s', got HTTP error: %d: %s", name, apiResp.StatusCode(), apiResp.Body))
-		return
-	}
-
-	var result roleSearchQueryResult
-	if err := json.Unmarshal(apiResp.Body, &result); err != nil {
-		resp.Diagnostics.AddError("Invalid Response", fmt.Sprintf("Unable to parse role search response: %s", err))
-		return
-	}
-
-	switch len(result.Items) {
-	case 0:
-		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("No role found with name '%s'.", name))
-		return
-	case 1:
-		// exactly one match
-	default:
-		resp.Diagnostics.AddError("Ambiguous Lookup", fmt.Sprintf("Name '%s' matched %d roles; role names are not guaranteed unique.", name, len(result.Items)))
-		return
-	}
-
-	match := result.Items[0]
+	match := items[0]
 	data.Id = types.StringValue(match.RoleId)
 	data.Name = types.StringValue(match.Name)
 	if match.Description != nil {
