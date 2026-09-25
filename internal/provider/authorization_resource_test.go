@@ -142,6 +142,12 @@ func checkAuthorizationExistsInEngineWithVariant(resourceName string, expectedPe
 // prefilled an omitted Optional+Computed attribute's plan from prior state (which happens
 // before any plan modifier runs) -- meaning the very case the modifier exists for could
 // bypass its logic entirely, leaving the abandoned scope's stale value in the plan.
+//
+// The final step additionally removes the scope entirely (neither resource_id nor
+// resource_property_name configured), covering a related bug where that same modifier
+// unconditionally restored the prior state value whenever both scope attributes were omitted,
+// which wrongly preserved a previously configured explicit resource_id instead of planning the
+// transition to the documented wildcard default.
 func TestAccAuthorizationResource_ScopeTransition(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -174,6 +180,21 @@ func TestAccAuthorizationResource_ScopeTransition(t *testing.T) {
 					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "test-process"}),
 				),
 			},
+			// Remove the explicit scope entirely: neither resource_id nor resource_property_name
+			// configured. This covers a bug where authorizationScopePlanModifier unconditionally
+			// restored the prior state value whenever both scope attributes were omitted, on the
+			// (wrong) assumption that "neither configured" always means "nothing about scope
+			// changed" -- which wrongly preserved the previous explicit resource_id
+			// ("test-process") instead of planning the transition to the documented wildcard
+			// default ("*").
+			{
+				Config: providerConfig + testAccAuthorizationTransitionResourceConfigNoScope([]string{"READ_PROCESS_DEFINITION"}),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("camundacluster_authorization.test_transition", "resource_id", "*"),
+					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_transition", "resource_property_name"),
+					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "*"}),
+				),
+			},
 		},
 	})
 }
@@ -198,4 +219,23 @@ resource "camundacluster_authorization" "test_transition" {
 %s
 }
 `, strings.Join(quoted, ", "), scopeLine)
+}
+
+// testAccAuthorizationTransitionResourceConfigNoScope configures the authorization with
+// neither resource_id nor resource_property_name set, exercising the documented "defaults to
+// wildcard" behavior.
+func testAccAuthorizationTransitionResourceConfigNoScope(permissions []string) string {
+	quoted := make([]string, len(permissions))
+	for i, p := range permissions {
+		quoted[i] = fmt.Sprintf("%q", p)
+	}
+
+	return fmt.Sprintf(`
+resource "camundacluster_authorization" "test_transition" {
+  owner_type    = "USER"
+  owner_id      = "demo"
+  resource_type = "PROCESS_DEFINITION"
+  permissions   = [%s]
+}
+`, strings.Join(quoted, ", "))
 }
