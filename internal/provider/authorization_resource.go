@@ -250,6 +250,18 @@ func (m authorizationScopePlanModifier) PlanModifyString(ctx context.Context, re
 		return
 	}
 
+	if siblingConfigValue.IsUnknown() {
+		// The sibling's config value isn't known yet at plan time (e.g. it's derived from
+		// another resource's not-yet-known attribute). We can't yet tell whether it will
+		// resolve to null (in which case this attribute should take over the default) or to
+		// a real value (in which case this attribute should become null) -- deciding either
+		// way now risks Terraform's "inconsistent result after apply" once the sibling's
+		// real value is known. Leave this attribute unknown too, so both resolve together at
+		// apply time.
+		resp.PlanValue = types.StringUnknown()
+		return
+	}
+
 	if siblingConfigValue.IsNull() {
 		// Neither scope attribute is configured. If the prior state for THIS attribute already
 		// reflects its own "unused/default" value, nothing about scope is actually changing, so
