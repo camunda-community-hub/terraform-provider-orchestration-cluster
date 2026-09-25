@@ -62,9 +62,9 @@ func (r *RoleResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Required:            true,
 			},
 			"description": schema.StringAttribute{
-				MarkdownDescription: "The description of the role.",
-				Optional:            true,
-				Computed:            true,
+				MarkdownDescription: "The description of the role. Omit this attribute (or set it to `null`) to indicate no " +
+					"description.",
+				Optional: true,
 			},
 		},
 	}
@@ -96,12 +96,9 @@ func (r *RoleResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	request := camunda.CreateRoleJSONRequestBody{
-		RoleId: data.RoleId.ValueString(),
-		Name:   data.Name.ValueString(),
-	}
-	if !data.Description.IsNull() && !data.Description.IsUnknown() {
-		desc := data.Description.ValueString()
-		request.Description = &desc
+		RoleId:      data.RoleId.ValueString(),
+		Name:        data.Name.ValueString(),
+		Description: data.Description.ValueStringPointer(),
 	}
 
 	apiResp, err := r.client.CreateRoleWithResponse(ctx, request)
@@ -128,11 +125,7 @@ func (r *RoleResource) Create(ctx context.Context, req resource.CreateRequest, r
 	data.Id = types.StringValue(apiResp.JSON201.RoleId)
 	data.RoleId = types.StringValue(apiResp.JSON201.RoleId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
-	if apiResp.JSON201.Description != nil {
-		data.Description = types.StringValue(*apiResp.JSON201.Description)
-	} else {
-		data.Description = types.StringValue("")
-	}
+	data.Description = optionalStringValue(apiResp.JSON201.Description)
 
 	tflog.Trace(ctx, "created role resource")
 
@@ -171,11 +164,7 @@ func (r *RoleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	data.Id = types.StringValue(apiResp.JSON200.RoleId)
 	data.RoleId = types.StringValue(apiResp.JSON200.RoleId)
 	data.Name = types.StringValue(apiResp.JSON200.Name)
-	if apiResp.JSON200.Description != nil {
-		data.Description = types.StringValue(*apiResp.JSON200.Description)
-	} else {
-		data.Description = types.StringValue("")
-	}
+	data.Description = optionalStringValue(apiResp.JSON200.Description)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -195,11 +184,8 @@ func (r *RoleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	request := camunda.UpdateRoleJSONRequestBody{
-		Name: data.Name.ValueString(),
-	}
-	if !data.Description.IsNull() && !data.Description.IsUnknown() {
-		desc := data.Description.ValueString()
-		request.Description = &desc
+		Name:        data.Name.ValueString(),
+		Description: data.Description.ValueStringPointer(),
 	}
 
 	apiResp, err := r.client.UpdateRoleWithResponse(ctx, state.RoleId.ValueString(), request)
@@ -230,11 +216,7 @@ func (r *RoleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	data.Id = types.StringValue(readResp.JSON200.RoleId)
 	data.RoleId = types.StringValue(readResp.JSON200.RoleId)
 	data.Name = types.StringValue(readResp.JSON200.Name)
-	if readResp.JSON200.Description != nil {
-		data.Description = types.StringValue(*readResp.JSON200.Description)
-	} else {
-		data.Description = types.StringValue("")
-	}
+	data.Description = optionalStringValue(readResp.JSON200.Description)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
