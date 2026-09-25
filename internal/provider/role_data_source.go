@@ -104,40 +104,61 @@ func (d *RoleDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	name := data.Name.ValueString()
 
 	// POST /roles/search is eventually consistent: a role created earlier in the same
-	// apply may not be searchable yet even though its own create already completed. Poll
-	// while the search reports zero matches, rather than converting the first empty
-	// response directly into "Not Found" -- but don't retry on 1 (a real match) or on 2+
-	// (a genuine ambiguous-name condition, not a consistency issue). The request body is
-	// re-marshaled and a fresh reader constructed on every attempt, since an io.Reader
-	// can't be replayed after being consumed by a previous attempt.
+	// apply may not be searchable yet even though its own create already completed, and
+	// two same-named roles can be projected one at a time, so a single nonempty result
+	// doesn't prove uniqueness. lastCount tracks the previous poll's result count so the
+	// closure below can require it to be stable (unchanged and nonzero) across two
+	// consecutive polls before accepting it, rather than trusting the first nonzero
+	// count -- this narrows, but can't fully close, the race where a second duplicate
+	// lands in the gap between two "stable" polls; there's no uniqueness-guaranteed
+	// lookup available from this API to close it completely. hardErr captures any
+	// transport/HTTP/decode failure from the closure so it can be distinguished below
+	// from a genuine "polled to timeout with zero matches" case; both are reported as an
+	// error by waitForConsistency, but only the latter is actually a "not found" signal.
+	// The request body is re-marshaled and a fresh reader constructed on every attempt,
+	// since an io.Reader can't be replayed after being consumed by a previous attempt.
+	lastCount := -1
+	var hardErr error
 	items, err := waitForConsistency(ctx, fmt.Sprintf("role named %q", name), func() ([]camunda.RoleResult, bool, error) {
+		hardErr = nil
+
 		filterReq := roleSearchByNameRequest{}
 		filterReq.Filter.Name = name
 
 		bodyBytes, err := json.Marshal(filterReq)
 		if err != nil {
-			return nil, false, fmt.Errorf("unable to encode role search request: %w", err)
+			hardErr = fmt.Errorf("unable to encode role search request: %w", err)
+			return nil, false, hardErr
 		}
 
 		apiResp, err := d.client.SearchRolesWithBodyWithResponse(ctx, "application/json", bytes.NewReader(bodyBytes))
 		if err != nil {
-			return nil, false, err
+			hardErr = err
+			return nil, false, hardErr
 		}
 
 		if apiResp.StatusCode() != http.StatusOK {
-			return nil, false, fmt.Errorf("got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body)
+			hardErr = fmt.Errorf("got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body)
+			return nil, false, hardErr
 		}
 
 		var result roleSearchQueryResult
 		if err := json.Unmarshal(apiResp.Body, &result); err != nil {
-			return nil, false, fmt.Errorf("unable to parse role search response: %w", err)
+			hardErr = fmt.Errorf("unable to parse role search response: %w", err)
+			return nil, false, hardErr
 		}
 
-		return result.Items, len(result.Items) > 0, nil
+		count := len(result.Items)
+		stable := count > 0 && count == lastCount
+		lastCount = count
+		return result.Items, stable, nil
 	})
-	// waitForConsistency only reports "ready" once at least one match is found, so an error
-	// here means the search never returned any match within the timeout -- a real "not
-	// found" (or a persistent hard error, whose detail is still included in the message).
+	if hardErr != nil {
+		resp.Diagnostics.AddError("Search Error", fmt.Sprintf("Unable to search for role named '%s': %s", name, hardErr))
+		return
+	}
+	// With no hard error, an error here means waitForConsistency timed out with the last
+	// attempt cleanly reporting zero matches -- a real "not found".
 	if err != nil {
 		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("No role found with name '%s': %s", name, err))
 		return
