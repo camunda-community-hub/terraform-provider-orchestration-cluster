@@ -22,6 +22,12 @@ func TestAccRoleMemberClientResource(t *testing.T) {
 				Config: providerConfig + testAccRoleMemberClientResourceConfig(),
 				Check:  checkRoleClientAssignmentExistsInEngine(),
 			},
+			// ImportState testing
+			{
+				ResourceName:      "camundacluster_role_member_client.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
 		},
 	})
 }
