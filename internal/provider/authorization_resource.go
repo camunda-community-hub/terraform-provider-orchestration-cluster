@@ -186,10 +186,12 @@ func (m authorizationScopePlanModifier) PlanModifyString(ctx context.Context, re
 		return
 	}
 
-	// Do nothing if there is already a known planned value.
-	if !req.PlanValue.IsUnknown() {
-		return
-	}
+	// Deliberately NOT bailing out here just because req.PlanValue is already known: for an
+	// Optional+Computed attribute the framework can prefill the proposed plan directly from
+	// prior state before this modifier ever runs, so a known PlanValue does not mean "nothing
+	// to do" -- it can be exactly the stale, abandoned-scope value this modifier exists to
+	// correct. Always check the sibling below whenever this attribute is omitted from config,
+	// regardless of what PlanValue currently holds.
 
 	var siblingConfigValue types.String
 	diags := req.Config.GetAttribute(ctx, m.siblingAttribute, &siblingConfigValue)

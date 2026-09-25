@@ -134,3 +134,68 @@ func checkAuthorizationExistsInEngineWithVariant(resourceName string, expectedPe
 		return nil
 	}
 }
+
+// TestAccAuthorizationResource_ScopeTransition exercises switching the same authorization
+// resource between the ID-based and property-based scope in both directions. This covers a
+// bug where authorizationScopePlanModifier's now-removed "already known planned value"
+// early-return skipped the sibling-attribute check whenever the framework had already
+// prefilled an omitted Optional+Computed attribute's plan from prior state (which happens
+// before any plan modifier runs) -- meaning the very case the modifier exists for could
+// bypass its logic entirely, leaving the abandoned scope's stale value in the plan.
+func TestAccAuthorizationResource_ScopeTransition(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Start ID-based.
+			{
+				Config: providerConfig + testAccAuthorizationTransitionResourceConfig(false, []string{"READ_PROCESS_DEFINITION"}),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("camundacluster_authorization.test_transition", "resource_id", "test-process"),
+					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_transition", "resource_property_name"),
+					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "test-process"}),
+				),
+			},
+			// Transition ID-based -> property-based: resource_id omitted, resource_property_name configured.
+			{
+				Config: providerConfig + testAccAuthorizationTransitionResourceConfig(true, []string{"READ_PROCESS_DEFINITION"}),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("camundacluster_authorization.test_transition", "resource_property_name", "processDefinitionKey"),
+					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_transition", "resource_id"),
+					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourcePropertyName: "processDefinitionKey", isPropertyBased: true}),
+				),
+			},
+			// Transition back property-based -> ID-based: resource_property_name omitted, resource_id configured again.
+			{
+				Config: providerConfig + testAccAuthorizationTransitionResourceConfig(false, []string{"READ_PROCESS_DEFINITION"}),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("camundacluster_authorization.test_transition", "resource_id", "test-process"),
+					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_transition", "resource_property_name"),
+					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "test-process"}),
+				),
+			},
+		},
+	})
+}
+
+func testAccAuthorizationTransitionResourceConfig(useProperty bool, permissions []string) string {
+	quoted := make([]string, len(permissions))
+	for i, p := range permissions {
+		quoted[i] = fmt.Sprintf("%q", p)
+	}
+
+	scopeLine := `  resource_id             = "test-process"`
+	if useProperty {
+		scopeLine = `  resource_property_name  = "processDefinitionKey"`
+	}
+
+	return fmt.Sprintf(`
+resource "camundacluster_authorization" "test_transition" {
+  owner_type    = "USER"
+  owner_id      = "demo"
+  resource_type = "PROCESS_DEFINITION"
+  permissions   = [%s]
+%s
+}
+`, strings.Join(quoted, ", "), scopeLine)
+}
