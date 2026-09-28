@@ -157,10 +157,17 @@ func (d *RoleDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		resp.Diagnostics.AddError("Search Error", fmt.Sprintf("Unable to search for role named '%s': %s", name, hardErr))
 		return
 	}
-	// With no hard error, an error here means waitForConsistency timed out with the last
-	// attempt cleanly reporting zero matches -- a real "not found".
+	// With no hard error, an error here means waitForConsistency timed out. lastCount == 0
+	// means the last attempt cleanly reported zero matches -- a real "not found". A
+	// positive lastCount means matches kept appearing but never stabilized across two
+	// consecutive polls, which is not the same as "not found" and must not be reported as
+	// one; -1 means the search was cancelled before a first poll completed.
 	if err != nil {
-		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("No role found with name '%s': %s", name, err))
+		if lastCount == 0 {
+			resp.Diagnostics.AddError("Not Found", fmt.Sprintf("No role found with name '%s': %s", name, err))
+		} else {
+			resp.Diagnostics.AddError("Search Error", fmt.Sprintf("Search for role named '%s' did not stabilize: %s", name, err))
+		}
 		return
 	}
 
