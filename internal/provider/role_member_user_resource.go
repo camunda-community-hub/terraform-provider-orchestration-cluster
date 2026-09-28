@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -45,7 +46,7 @@ func (r *RoleMemberUserResource) Schema(ctx context.Context, req resource.Schema
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "Composite ID of the assignment (`role_id/user_id`). Also used as the import ID: `terraform import camundacluster_role_member_user.example <role_id>/<user_id>`.",
+				MarkdownDescription: "Composite ID of the assignment (percent-encoded `role_id/user_id`). Also used as the import ID: `terraform import camundacluster_role_member_user.example <role_id>/<user_id>`, with each component percent-encoded if it contains a `/`.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -105,7 +106,7 @@ func (r *RoleMemberUserResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	data.Id = types.StringValue(data.RoleId.ValueString() + "/" + data.UserId.ValueString())
+	data.Id = types.StringValue(url.PathEscape(data.RoleId.ValueString()) + "/" + url.PathEscape(data.UserId.ValueString()))
 
 	// Persist state from the plan plus the composite ID before polling for read
 	// consistency, so a polling timeout or transport error doesn't orphan the assignment
@@ -218,7 +219,10 @@ func searchAllRoleUsers(ctx context.Context, client *camunda.ClientWithResponses
 }
 
 func (r *RoleMemberUserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, "/")
+	// The two components are percent-encoded before being joined with "/" (see Create), so
+	// splitting on the first unescaped "/" is unambiguous even if role_id or user_id itself
+	// contains a "/" — that "/" only ever appears escaped as "%2F" within a component.
+	parts := strings.SplitN(req.ID, "/", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		resp.Diagnostics.AddError(
 			"Invalid Import ID",
@@ -227,9 +231,20 @@ func (r *RoleMemberUserResource) ImportState(ctx context.Context, req resource.I
 		return
 	}
 
+	roleId, err := url.PathUnescape(parts[0])
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Import ID", fmt.Sprintf("Unable to decode role_id from import ID %q: %s", req.ID, err))
+		return
+	}
+	userId, err := url.PathUnescape(parts[1])
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Import ID", fmt.Sprintf("Unable to decode user_id from import ID %q: %s", req.ID, err))
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("user_id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_id"), roleId)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("user_id"), userId)...)
 }
 
 func (r *RoleMemberUserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
