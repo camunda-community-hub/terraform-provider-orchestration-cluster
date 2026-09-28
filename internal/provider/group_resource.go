@@ -162,7 +162,7 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	if apiResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("Error while reading group, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
+		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading group '%s', got HTTP error: %d", data.GroupId.ValueString(), apiResp.StatusCode()))
 		return
 	}
 
