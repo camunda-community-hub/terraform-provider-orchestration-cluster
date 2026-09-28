@@ -381,6 +381,18 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 	authKey := apiResp.JSON201.AuthorizationKey
 	data.Id = types.StringValue(authKey)
 
+	// Resolve resource_id/resource_property_name from the already-computed variant rather
+	// than leaving them as whatever the plan held: an omitted Optional+Computed scope
+	// attribute is still unknown on the plan, and this fallback state exists precisely to
+	// cover the case where the poll below times out, so it must hold known, valid values.
+	if variant.isPropertyBased {
+		data.ResourceId = types.StringNull()
+		data.ResourcePropertyName = types.StringValue(variant.resourcePropertyName)
+	} else {
+		data.ResourceId = types.StringValue(variant.resourceId)
+		data.ResourcePropertyName = types.StringNull()
+	}
+
 	// Persist state from the plan plus the newly-assigned key before polling for read
 	// consistency, so a polling timeout or transport error doesn't orphan the authorization
 	// the API already created.
