@@ -39,7 +39,7 @@ resource "camundacluster_role_member_group" "engineering_deployer" {
 
 ### Read-Only
 
-- `id` (String) Composite ID of the assignment (`role_id/group_id`). Also used as the import ID: `terraform import camundacluster_role_member_group.example <role_id>/<group_id>`.
+- `id` (String) Composite ID of the assignment (percent-encoded `role_id/group_id`). Also used as the import ID: `terraform import camundacluster_role_member_group.example <role_id>/<group_id>`, with each component percent-encoded if it contains a `/`.
 
 ## Import
 
