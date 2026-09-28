@@ -39,7 +39,7 @@ resource "camundacluster_authorization" "example" {
 ### Required
 
 - `owner_id` (String) The ID of the owner of permissions.
-- `owner_type` (String) The type of the owner of permissions.
+- `owner_type` (String) The type of the owner of permissions. Must be one of USER, CLIENT, ROLE, GROUP, MAPPING_RULE, or UNSPECIFIED.
 - `permission_types` (Set of String) The permission types.
 - `resource_type` (String) The type of resource that the permissions relate to.
 
