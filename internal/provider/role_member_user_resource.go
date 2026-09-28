@@ -105,6 +105,16 @@ func (r *RoleMemberUserResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
+	data.Id = types.StringValue(data.RoleId.ValueString() + "/" + data.UserId.ValueString())
+
+	// Persist state from the plan plus the composite ID before polling for read
+	// consistency, so a polling timeout or transport error doesn't orphan the assignment
+	// the API already made.
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	_, err = waitForConsistency(ctx, fmt.Sprintf("role %q user %q assignment", data.RoleId.ValueString(), data.UserId.ValueString()), func() (bool, bool, error) {
 		found, err := searchAllRoleUsers(ctx, r.client, data.RoleId.ValueString(), data.UserId.ValueString())
 		if err != nil {
@@ -117,15 +127,11 @@ func (r *RoleMemberUserResource) Create(ctx context.Context, req resource.Create
 		return found, found, nil
 	})
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm user was assigned to role, got error: %s", err))
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("User %q was assigned to role %q but could not be confirmed yet: %s. State was saved from the assignment response; a later refresh will pick up any drift.", data.UserId.ValueString(), data.RoleId.ValueString(), err))
 		return
 	}
 
-	data.Id = types.StringValue(data.RoleId.ValueString() + "/" + data.UserId.ValueString())
-
 	tflog.Trace(ctx, "created role member user resource")
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *RoleMemberUserResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
