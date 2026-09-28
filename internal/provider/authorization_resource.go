@@ -230,6 +230,12 @@ func (m authorizationScopePlanModifier) PlanModifyString(ctx context.Context, re
 		return
 	}
 
+	// Likewise do nothing during destroy: state is non-null there, but plan is null, and
+	// this modifier must not replace that null destroy plan with a restored/unknown value.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
 	// A value explicitly configured for this attribute flows through unchanged; only react
 	// when the attribute itself is omitted from configuration.
 	if !req.ConfigValue.IsNull() {
