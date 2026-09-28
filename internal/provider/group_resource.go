@@ -122,19 +122,24 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	if _, err := readGroupWithRetry(ctx, r.client, apiResp.JSON201.GroupId); err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read group after creation, got error: %s", err))
-		return
-	}
-
 	data.Id = types.StringValue(apiResp.JSON201.GroupId)
 	data.GroupId = types.StringValue(apiResp.JSON201.GroupId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
 	data.Description = optionalStringValue(apiResp.JSON201.Description)
 
-	tflog.Trace(ctx, "created group resource")
-
+	// Persist state from the create response before polling for read consistency, so a
+	// polling timeout or transport error doesn't orphan the group the API already created.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if _, err := readGroupWithRetry(ctx, r.client, apiResp.JSON201.GroupId); err != nil {
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("Group %q was created but could not be confirmed readable yet: %s. State was saved from the create response; a later refresh will pick up any drift.", apiResp.JSON201.GroupId, err))
+		return
+	}
+
+	tflog.Trace(ctx, "created group resource")
 }
 
 func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
