@@ -101,7 +101,7 @@ func (r *RoleMemberUserResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	if apiResp.StatusCode() != http.StatusNoContent && apiResp.StatusCode() != http.StatusCreated && apiResp.StatusCode() != http.StatusOK {
+	if apiResp.StatusCode() != http.StatusNoContent && apiResp.StatusCode() != http.StatusCreated && apiResp.StatusCode() != http.StatusOK && apiResp.StatusCode() != http.StatusConflict {
 		resp.Diagnostics.AddError("Assignment Error", fmt.Sprintf("Error while assigning role to user, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
 		return
 	}
