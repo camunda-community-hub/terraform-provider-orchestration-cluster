@@ -105,6 +105,16 @@ func (r *RoleMemberClientResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
+	data.Id = types.StringValue(data.RoleId.ValueString() + "/" + data.ClientId.ValueString())
+
+	// Persist state from the plan plus the composite ID before polling for read
+	// consistency, so a polling timeout or transport error doesn't orphan the assignment
+	// the API already made.
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	_, err = waitForConsistency(ctx, fmt.Sprintf("role %q client %q assignment", data.RoleId.ValueString(), data.ClientId.ValueString()), func() (bool, bool, error) {
 		found, err := searchAllRoleClients(ctx, r.client, data.RoleId.ValueString(), data.ClientId.ValueString())
 		if err != nil {
@@ -117,15 +127,11 @@ func (r *RoleMemberClientResource) Create(ctx context.Context, req resource.Crea
 		return found, found, nil
 	})
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm client was assigned to role, got error: %s", err))
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("Client %q was assigned to role %q but could not be confirmed yet: %s. State was saved from the assignment response; a later refresh will pick up any drift.", data.ClientId.ValueString(), data.RoleId.ValueString(), err))
 		return
 	}
 
-	data.Id = types.StringValue(data.RoleId.ValueString() + "/" + data.ClientId.ValueString())
-
 	tflog.Trace(ctx, "created role member client resource")
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *RoleMemberClientResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
