@@ -172,11 +172,7 @@ func (d *RoleDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	match := items[0]
 	data.Id = types.StringValue(match.RoleId)
 	data.Name = types.StringValue(match.Name)
-	if match.Description != nil {
-		data.Description = types.StringValue(*match.Description)
-	} else {
-		data.Description = types.StringValue("")
-	}
+	data.Description = optionalStringValue(match.Description)
 
 	tflog.Trace(ctx, "read role data source")
 
