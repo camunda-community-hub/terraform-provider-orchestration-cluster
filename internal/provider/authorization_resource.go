@@ -68,8 +68,14 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				Required:            true,
 			},
 			"resource_type": schema.StringAttribute{
-				MarkdownDescription: "The type of resource that the permissions relate to.",
-				Required:            true,
+				MarkdownDescription: "The type of resource that the permissions relate to. Must be one of AUDIT_LOG, " +
+					"AUTHORIZATION, BATCH, CLUSTER_VARIABLE, COMPONENT, DECISION_DEFINITION, " +
+					"DECISION_REQUIREMENTS_DEFINITION, DOCUMENT, EXPRESSION, GLOBAL_LISTENER, GROUP, MAPPING_RULE, " +
+					"MESSAGE, PROCESS_DEFINITION, RESOURCE, ROLE, SYSTEM, TENANT, USER, or USER_TASK.",
+				Required: true,
+				Validators: []validator.String{
+					resourceTypeEnumValidator{},
+				},
 			},
 			"permission_types": schema.SetAttribute{
 				MarkdownDescription: "The permission types.",
@@ -200,6 +206,33 @@ func (v ownerTypeEnumValidator) ValidateString(ctx context.Context, req validato
 			req.Path,
 			"Invalid Owner Type",
 			fmt.Sprintf("%s must be one of USER, CLIENT, ROLE, GROUP, MAPPING_RULE, or UNSPECIFIED; got %q.", req.Path, req.ConfigValue.ValueString()),
+		)
+	}
+}
+
+// resourceTypeEnumValidator rejects a resource_type value that isn't a known member of the
+// API's ResourceTypeEnum, so an invalid value fails at plan time instead of surfacing as an
+// apply-time API error.
+type resourceTypeEnumValidator struct{}
+
+func (v resourceTypeEnumValidator) Description(ctx context.Context) string {
+	return "must be a valid resource type recognized by the API"
+}
+
+func (v resourceTypeEnumValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v resourceTypeEnumValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	if !camunda.ResourceTypeEnum(req.ConfigValue.ValueString()).Valid() {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Resource Type",
+			fmt.Sprintf("%s must be a valid resource type recognized by the API; got %q.", req.Path, req.ConfigValue.ValueString()),
 		)
 	}
 }
