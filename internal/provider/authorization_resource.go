@@ -57,8 +57,11 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				},
 			},
 			"owner_type": schema.StringAttribute{
-				MarkdownDescription: "The type of the owner of permissions.",
+				MarkdownDescription: "The type of the owner of permissions. Must be one of USER, CLIENT, ROLE, GROUP, MAPPING_RULE, or UNSPECIFIED.",
 				Required:            true,
+				Validators: []validator.String{
+					ownerTypeEnumValidator{},
+				},
 			},
 			"owner_id": schema.StringAttribute{
 				MarkdownDescription: "The ID of the owner of permissions.",
@@ -170,6 +173,33 @@ func (v nonEmptyScopeValidator) ValidateString(ctx context.Context, req validato
 			req.Path,
 			"Invalid Value",
 			fmt.Sprintf("%s must not be an empty string; omit the attribute (or set it to null) instead.", req.Path),
+		)
+	}
+}
+
+// ownerTypeEnumValidator rejects an owner_type value that isn't a known member of the API's
+// OwnerTypeEnum, so an invalid value fails at plan time instead of surfacing as an apply-time
+// API error.
+type ownerTypeEnumValidator struct{}
+
+func (v ownerTypeEnumValidator) Description(ctx context.Context) string {
+	return "must be a valid owner type (USER, CLIENT, ROLE, GROUP, MAPPING_RULE, or UNSPECIFIED)"
+}
+
+func (v ownerTypeEnumValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v ownerTypeEnumValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	if !camunda.OwnerTypeEnum(req.ConfigValue.ValueString()).Valid() {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Owner Type",
+			fmt.Sprintf("%s must be one of USER, CLIENT, ROLE, GROUP, MAPPING_RULE, or UNSPECIFIED; got %q.", req.Path, req.ConfigValue.ValueString()),
 		)
 	}
 }
