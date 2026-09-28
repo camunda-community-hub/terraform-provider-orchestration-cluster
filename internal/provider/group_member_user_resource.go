@@ -105,6 +105,16 @@ func (r *GroupMemberUserResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
+	data.Id = types.StringValue(data.GroupId.ValueString() + "/" + data.UserId.ValueString())
+
+	// Persist state from the plan plus the composite ID before polling for read
+	// consistency, so a polling timeout or transport error doesn't orphan the assignment
+	// the API already made.
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	_, err = waitForConsistency(ctx, fmt.Sprintf("group %q user %q assignment", data.GroupId.ValueString(), data.UserId.ValueString()), func() (bool, bool, error) {
 		found, err := searchAllGroupUsers(ctx, r.client, data.GroupId.ValueString(), data.UserId.ValueString())
 		if err != nil {
@@ -117,15 +127,11 @@ func (r *GroupMemberUserResource) Create(ctx context.Context, req resource.Creat
 		return found, found, nil
 	})
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm user was assigned to group, got error: %s", err))
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("User %q was assigned to group %q but could not be confirmed yet: %s. State was saved from the assignment response; a later refresh will pick up any drift.", data.UserId.ValueString(), data.GroupId.ValueString(), err))
 		return
 	}
 
-	data.Id = types.StringValue(data.GroupId.ValueString() + "/" + data.UserId.ValueString())
-
 	tflog.Trace(ctx, "created group member user resource")
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *GroupMemberUserResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
