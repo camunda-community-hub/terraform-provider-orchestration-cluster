@@ -34,7 +34,7 @@ resource "camundacluster_group_member_client" "ci" {
 
 ### Read-Only
 
-- `id` (String) Composite ID of the assignment (`group_id/client_id`). Also used as the import ID: `terraform import camundacluster_group_member_client.example <group_id>/<client_id>`.
+- `id` (String) Composite ID of the assignment (percent-encoded `group_id/client_id`). Also used as the import ID: `terraform import camundacluster_group_member_client.example <group_id>/<client_id>`, with each component percent-encoded if it contains a `/`.
 
 ## Import
 

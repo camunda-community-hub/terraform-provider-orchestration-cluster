@@ -41,7 +41,7 @@ resource "camundacluster_group_member_user" "alice_engineering" {
 
 ### Read-Only
 
-- `id` (String) Composite ID of the assignment (`group_id/user_id`). Also used as the import ID: `terraform import camundacluster_group_member_user.example <group_id>/<user_id>`.
+- `id` (String) Composite ID of the assignment (percent-encoded `group_id/user_id`). Also used as the import ID: `terraform import camundacluster_group_member_user.example <group_id>/<user_id>`, with each component percent-encoded if it contains a `/`.
 
 ## Import
 
