@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -106,10 +107,17 @@ func checkRoleExistsInEngine(roleName string) resource.TestCheckFunc {
 				if err != nil {
 					return nil, false, err
 				}
-				if resp.StatusCode() != 200 || resp.JSON200 == nil {
+				switch resp.StatusCode() {
+				case http.StatusNotFound:
 					return resp, false, nil
+				case http.StatusOK:
+					if resp.JSON200 == nil {
+						return nil, false, fmt.Errorf("got 200 response with unparseable body: %s", resp.Body)
+					}
+					return resp, resp.JSON200.Name == roleName, nil
+				default:
+					return nil, false, fmt.Errorf("got HTTP error: %d: %s", resp.StatusCode(), resp.Body)
 				}
-				return resp, resp.JSON200.Name == roleName, nil
 			})
 			if err != nil {
 				return fmt.Errorf("role %s not found or not matching in engine: %w", roleId, err)
