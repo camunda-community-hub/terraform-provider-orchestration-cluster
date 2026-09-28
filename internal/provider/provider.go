@@ -74,6 +74,7 @@ func (p *CamundaClusterProvider) Schema(ctx context.Context, req provider.Schema
 					"password": schema.StringAttribute{
 						MarkdownDescription: "The HTTP Basic Auth password.",
 						Required:            true,
+						Sensitive:           true,
 					},
 				},
 				Optional: true,
@@ -116,9 +117,6 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
 
 	var opts []camunda.ClientOption
 
@@ -212,6 +210,14 @@ func (p *CamundaClusterProvider) Resources(ctx context.Context) []func() resourc
 		NewExampleResource,
 		NewUserResource,
 		NewTenantResource,
+		NewGroupResource,
+		NewRoleResource,
+		NewAuthorizationResource,
+		NewGroupMemberUserResource,
+		NewGroupMemberClientResource,
+		NewRoleMemberUserResource,
+		NewRoleMemberClientResource,
+		NewRoleMemberGroupResource,
 	}
 }
 
@@ -226,6 +232,8 @@ func (p *CamundaClusterProvider) DataSources(ctx context.Context) []func() datas
 		NewExampleDataSource,
 		NewClusterTopologyDataSource,
 		NewUserDataSource,
+		NewGroupDataSource,
+		NewRoleDataSource,
 	}
 }
 
