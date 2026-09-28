@@ -14,11 +14,11 @@ A Camunda cluster authorization
 
 ```terraform
 resource "camundacluster_authorization" "example" {
-  owner_type    = "GROUP"
-  owner_id      = "my-group"
-  resource_type = "PROCESS_DEFINITION"
-  resource_id   = "order-process"
-  permissions   = ["READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"]
+  owner_type       = "GROUP"
+  owner_id         = "my-group"
+  resource_type    = "PROCESS_DEFINITION"
+  resource_id      = "order-process"
+  permission_types = ["READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"]
 }
 
 # A property-based authorization scopes permissions to resources by a named
@@ -29,7 +29,7 @@ resource "camundacluster_authorization" "example" {
 #   owner_id                = "my-group"
 #   resource_type           = "PROCESS_DEFINITION"
 #   resource_property_name  = "customerId"
-#   permissions             = ["READ_PROCESS_DEFINITION"]
+#   permission_types        = ["READ_PROCESS_DEFINITION"]
 # }
 ```
 
@@ -40,7 +40,7 @@ resource "camundacluster_authorization" "example" {
 
 - `owner_id` (String) The ID of the owner of permissions.
 - `owner_type` (String) The type of the owner of permissions.
-- `permissions` (Set of String) The permission types.
+- `permission_types` (Set of String) The permission types.
 - `resource_type` (String) The type of resource that the permissions relate to.
 
 ### Optional

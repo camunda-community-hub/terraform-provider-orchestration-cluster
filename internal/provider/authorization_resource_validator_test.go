@@ -40,7 +40,7 @@ func newAuthorizationValidatorTestConfig(t *testing.T, resourceId, resourcePrope
 		"owner_type":             tftypes.NewValue(tftypes.String, "USER"),
 		"owner_id":               tftypes.NewValue(tftypes.String, "demo"),
 		"resource_type":          tftypes.NewValue(tftypes.String, "PROCESS_DEFINITION"),
-		"permissions":            permissionsValue,
+		"permission_types":       permissionsValue,
 		"resource_id":            stringOrNullTFValue(resourceId),
 		"resource_property_name": stringOrNullTFValue(resourcePropertyName),
 	})

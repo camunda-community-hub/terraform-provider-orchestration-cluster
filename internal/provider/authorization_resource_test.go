@@ -38,7 +38,7 @@ func TestAccAuthorizationResource(t *testing.T) {
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_authorization.test",
-						tfjsonpath.New("permissions"),
+						tfjsonpath.New("permission_types"),
 						knownvalue.SetExact([]knownvalue.Check{
 							knownvalue.StringExact("READ_PROCESS_DEFINITION"),
 							knownvalue.StringExact("CREATE_PROCESS_INSTANCE"),
@@ -57,11 +57,11 @@ func testAccAuthorizationResourceConfig(permissions []string) string {
 	}
 	return fmt.Sprintf(`
 resource "camundacluster_authorization" "test" {
-  owner_type    = "USER"
-  owner_id      = "demo"
-  resource_type = "PROCESS_DEFINITION"
-  permissions   = [%s]
-  resource_id   = "test-process"
+  owner_type       = "USER"
+  owner_id         = "demo"
+  resource_type    = "PROCESS_DEFINITION"
+  permission_types = [%s]
+  resource_id      = "test-process"
 }
 `, strings.Join(quoted, ", "))
 }
@@ -70,7 +70,7 @@ resource "camundacluster_authorization" "test" {
 // variant (resource_property_name set, resource_id left unset): both Create and, in
 // particular, Update, since an earlier bug had Update() unconditionally rebuild an
 // ID-based request, silently converting an imported property-based authorization's scope
-// to the wildcard "*" resource_id whenever any other field (e.g. permissions) changed.
+// to the wildcard "*" resource_id whenever any other field (e.g. permission_types) changed.
 func TestAccAuthorizationResource_PropertyBased(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -91,7 +91,7 @@ func TestAccAuthorizationResource_PropertyBased(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			// Update testing: changing permissions must not corrupt the property-based scope
+			// Update testing: changing permission_types must not corrupt the property-based scope
 			// back to an ID-based wildcard grant.
 			{
 				Config: providerConfig + testAccAuthorizationPropertyBasedResourceConfig([]string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}),
@@ -115,7 +115,7 @@ resource "camundacluster_authorization" "test_property" {
   owner_type              = "USER"
   owner_id                = "demo"
   resource_type           = "PROCESS_DEFINITION"
-  permissions             = [%s]
+  permission_types        = [%s]
   resource_property_name  = "processDefinitionKey"
 }
 `, strings.Join(quoted, ", "))
@@ -225,10 +225,10 @@ func testAccAuthorizationTransitionResourceConfig(useProperty bool, permissions 
 
 	return fmt.Sprintf(`
 resource "camundacluster_authorization" "test_transition" {
-  owner_type    = "USER"
-  owner_id      = "demo"
-  resource_type = "PROCESS_DEFINITION"
-  permissions   = [%s]
+  owner_type       = "USER"
+  owner_id         = "demo"
+  resource_type    = "PROCESS_DEFINITION"
+  permission_types = [%s]
 %s
 }
 `, strings.Join(quoted, ", "), scopeLine)
@@ -245,10 +245,10 @@ func testAccAuthorizationTransitionResourceConfigNoScope(permissions []string) s
 
 	return fmt.Sprintf(`
 resource "camundacluster_authorization" "test_transition" {
-  owner_type    = "USER"
-  owner_id      = "demo"
-  resource_type = "PROCESS_DEFINITION"
-  permissions   = [%s]
+  owner_type       = "USER"
+  owner_id         = "demo"
+  resource_type    = "PROCESS_DEFINITION"
+  permission_types = [%s]
 }
 `, strings.Join(quoted, ", "))
 }

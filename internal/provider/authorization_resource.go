@@ -35,7 +35,7 @@ type AuthorizationResourceModel struct {
 	OwnerType            types.String `tfsdk:"owner_type"`
 	OwnerId              types.String `tfsdk:"owner_id"`
 	ResourceType         types.String `tfsdk:"resource_type"`
-	Permissions          types.Set    `tfsdk:"permissions"`
+	PermissionTypes      types.Set    `tfsdk:"permission_types"`
 	ResourceId           types.String `tfsdk:"resource_id"`
 	ResourcePropertyName types.String `tfsdk:"resource_property_name"`
 }
@@ -68,7 +68,7 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				MarkdownDescription: "The type of resource that the permissions relate to.",
 				Required:            true,
 			},
-			"permissions": schema.SetAttribute{
+			"permission_types": schema.SetAttribute{
 				MarkdownDescription: "The permission types.",
 				Required:            true,
 				ElementType:         types.StringType,
@@ -330,7 +330,7 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 	}
 
 	var permissionStrings []string
-	resp.Diagnostics.Append(data.Permissions.ElementsAs(ctx, &permissionStrings, false)...)
+	resp.Diagnostics.Append(data.PermissionTypes.ElementsAs(ctx, &permissionStrings, false)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -476,7 +476,7 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 	}
 
 	var permissionStrings []string
-	resp.Diagnostics.Append(data.Permissions.ElementsAs(ctx, &permissionStrings, false)...)
+	resp.Diagnostics.Append(data.PermissionTypes.ElementsAs(ctx, &permissionStrings, false)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -662,7 +662,7 @@ func authorizationResultToModel(ctx context.Context, id types.String, result *ca
 		perms[i] = string(p)
 	}
 	permSet, diags := types.SetValueFrom(ctx, types.StringType, perms)
-	data.Permissions = permSet
+	data.PermissionTypes = permSet
 
 	// ResourceId and ResourcePropertyName are mutually exclusive on the API side: a
 	// property-based authorization has ResourcePropertyName set and ResourceId nil. Defaulting
