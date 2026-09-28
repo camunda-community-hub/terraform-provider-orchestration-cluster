@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -63,8 +64,12 @@ func (r *GroupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "The description of the group. Omit this attribute (or set it to `null`) to indicate no " +
-					"description.",
+					"description — the API cannot distinguish an empty string from an absent description, so an explicitly " +
+					"configured empty string is rejected rather than silently normalized to null.",
 				Optional: true,
+				Validators: []validator.String{
+					nonEmptyStringValidator{},
+				},
 			},
 		},
 	}
