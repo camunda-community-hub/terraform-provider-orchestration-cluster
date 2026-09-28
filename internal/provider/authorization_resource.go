@@ -338,7 +338,11 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 		permissionTypes[i] = camunda.PermissionTypeEnum(p)
 	}
 
-	variant := resolveAuthorizationRequestVariant(data.ResourceId, data.ResourcePropertyName)
+	variant, err := resolveAuthorizationRequestVariant(data.ResourceId, data.ResourcePropertyName)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Configuration", fmt.Sprintf("Unable to resolve authorization scope: %s", err))
+		return
+	}
 
 	authReq, err := buildAuthorizationRequest(
 		data.OwnerId.ValueString(),
@@ -476,7 +480,11 @@ func (r *AuthorizationResource) Update(ctx context.Context, req resource.UpdateR
 	// ID-based grant. When the plan reflects an actual scope transition, the plan modifier
 	// instead plans the abandoned attribute to explicit null, so this resolves to the newly
 	// configured variant.
-	variant := resolveAuthorizationRequestVariant(data.ResourceId, data.ResourcePropertyName)
+	variant, err := resolveAuthorizationRequestVariant(data.ResourceId, data.ResourcePropertyName)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Configuration", fmt.Sprintf("Unable to resolve authorization scope: %s", err))
+		return
+	}
 
 	updateReq, err := buildAuthorizationRequest(
 		data.OwnerId.ValueString(),
@@ -576,18 +584,28 @@ type authorizationRequestVariant struct {
 // resource_id/resource_property_name pair as found in a Terraform plan or state: a
 // non-null, non-unknown, non-empty resource_property_name selects the property-based
 // variant; otherwise the ID-based variant is used, defaulting resource_id to "*" when it is
-// not itself configured. The schema-level mutuallyExclusiveStringValidator on both
-// attributes ensures they are never both set at the same time.
-func resolveAuthorizationRequestVariant(resourceId, resourcePropertyName types.String) authorizationRequestVariant {
-	if !resourcePropertyName.IsNull() && !resourcePropertyName.IsUnknown() && resourcePropertyName.ValueString() != "" {
-		return authorizationRequestVariant{resourcePropertyName: resourcePropertyName.ValueString(), isPropertyBased: true}
+// not itself configured. The schema-level mutuallyExclusiveStringValidator only rejects both
+// attributes being concretely set at validation time — it lets unknowns through, so two
+// values that are both unknown during plan can still both resolve non-empty by apply time.
+// This is rechecked here against the resolved values, returning an error in that case
+// instead of silently picking the property-based variant and dropping resource_id.
+func resolveAuthorizationRequestVariant(resourceId, resourcePropertyName types.String) (authorizationRequestVariant, error) {
+	hasResourceId := !resourceId.IsNull() && !resourceId.IsUnknown() && resourceId.ValueString() != ""
+	hasResourcePropertyName := !resourcePropertyName.IsNull() && !resourcePropertyName.IsUnknown() && resourcePropertyName.ValueString() != ""
+
+	if hasResourceId && hasResourcePropertyName {
+		return authorizationRequestVariant{}, fmt.Errorf("resource_id %q and resource_property_name %q both resolved to non-empty values; only one may be set", resourceId.ValueString(), resourcePropertyName.ValueString())
+	}
+
+	if hasResourcePropertyName {
+		return authorizationRequestVariant{resourcePropertyName: resourcePropertyName.ValueString(), isPropertyBased: true}, nil
 	}
 
 	resolvedResourceId := "*"
-	if !resourceId.IsNull() && !resourceId.IsUnknown() && resourceId.ValueString() != "" {
+	if hasResourceId {
 		resolvedResourceId = resourceId.ValueString()
 	}
-	return authorizationRequestVariant{resourceId: resolvedResourceId}
+	return authorizationRequestVariant{resourceId: resolvedResourceId}, nil
 }
 
 // buildAuthorizationRequest encodes an AuthorizationRequest for the given variant.
