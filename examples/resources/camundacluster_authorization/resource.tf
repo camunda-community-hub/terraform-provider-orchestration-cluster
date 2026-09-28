@@ -1,9 +1,9 @@
 resource "camundacluster_authorization" "example" {
-  owner_type    = "GROUP"
-  owner_id      = "my-group"
-  resource_type = "PROCESS_DEFINITION"
-  resource_id   = "order-process"
-  permissions   = ["READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"]
+  owner_type       = "GROUP"
+  owner_id         = "my-group"
+  resource_type    = "PROCESS_DEFINITION"
+  resource_id      = "order-process"
+  permission_types = ["READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"]
 }
 
 # A property-based authorization scopes permissions to resources by a named
@@ -14,5 +14,5 @@ resource "camundacluster_authorization" "example" {
 #   owner_id                = "my-group"
 #   resource_type           = "PROCESS_DEFINITION"
 #   resource_property_name  = "customerId"
-#   permissions             = ["READ_PROCESS_DEFINITION"]
+#   permission_types        = ["READ_PROCESS_DEFINITION"]
 # }
