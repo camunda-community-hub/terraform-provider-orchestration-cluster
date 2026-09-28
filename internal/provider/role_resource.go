@@ -122,19 +122,24 @@ func (r *RoleResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	if _, err := readRoleWithRetry(ctx, r.client, apiResp.JSON201.RoleId); err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read role after creation, got error: %s", err))
-		return
-	}
-
 	data.Id = types.StringValue(apiResp.JSON201.RoleId)
 	data.RoleId = types.StringValue(apiResp.JSON201.RoleId)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
 	data.Description = optionalStringValue(apiResp.JSON201.Description)
 
-	tflog.Trace(ctx, "created role resource")
-
+	// Persist state from the create response before polling for read consistency, so a
+	// polling timeout or transport error doesn't orphan the role the API already created.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if _, err := readRoleWithRetry(ctx, r.client, apiResp.JSON201.RoleId); err != nil {
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("Role %q was created but could not be confirmed readable yet: %s. State was saved from the create response; a later refresh will pick up any drift.", apiResp.JSON201.RoleId, err))
+		return
+	}
+
+	tflog.Trace(ctx, "created role resource")
 }
 
 func (r *RoleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
