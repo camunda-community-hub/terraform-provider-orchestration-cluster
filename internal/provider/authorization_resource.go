@@ -78,9 +78,14 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				},
 			},
 			"permission_types": schema.SetAttribute{
-				MarkdownDescription: "The permission types.",
-				Required:            true,
-				ElementType:         types.StringType,
+				MarkdownDescription: "The permission types. Each element must be a permission type recognized by the " +
+					"Camunda API (e.g. READ_PROCESS_DEFINITION, CREATE_PROCESS_INSTANCE); see the Camunda API " +
+					"documentation for the full list.",
+				Required:    true,
+				ElementType: types.StringType,
+				Validators: []validator.Set{
+					permissionTypeEnumSetValidator{},
+				},
 			},
 			"resource_id": schema.StringAttribute{
 				MarkdownDescription: "The ID of the resource the permission relates to. Use \"*\" to match all resources. " +
@@ -234,6 +239,41 @@ func (v resourceTypeEnumValidator) ValidateString(ctx context.Context, req valid
 			"Invalid Resource Type",
 			fmt.Sprintf("%s must be a valid resource type recognized by the API; got %q.", req.Path, req.ConfigValue.ValueString()),
 		)
+	}
+}
+
+// permissionTypeEnumSetValidator rejects a permission_types element that isn't a known member
+// of the API's PermissionTypeEnum, so an invalid value fails at plan time instead of surfacing
+// as an apply-time API error.
+type permissionTypeEnumSetValidator struct{}
+
+func (v permissionTypeEnumSetValidator) Description(ctx context.Context) string {
+	return "each element must be a permission type recognized by the API"
+}
+
+func (v permissionTypeEnumSetValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v permissionTypeEnumSetValidator) ValidateSet(ctx context.Context, req validator.SetRequest, resp *validator.SetResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	var elements []string
+	resp.Diagnostics.Append(req.ConfigValue.ElementsAs(ctx, &elements, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	for _, element := range elements {
+		if !camunda.PermissionTypeEnum(element).Valid() {
+			resp.Diagnostics.AddAttributeError(
+				req.Path,
+				"Invalid Permission Type",
+				fmt.Sprintf("%s must contain only permission types recognized by the API; got %q.", req.Path, element),
+			)
+		}
 	}
 }
 

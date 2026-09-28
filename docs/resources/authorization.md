@@ -40,7 +40,7 @@ resource "camundacluster_authorization" "example" {
 
 - `owner_id` (String) The ID of the owner of permissions.
 - `owner_type` (String) The type of the owner of permissions. Must be one of USER, CLIENT, ROLE, GROUP, MAPPING_RULE, or UNSPECIFIED.
-- `permission_types` (Set of String) The permission types.
+- `permission_types` (Set of String) The permission types. Each element must be a permission type recognized by the Camunda API (e.g. READ_PROCESS_DEFINITION, CREATE_PROCESS_INSTANCE); see the Camunda API documentation for the full list.
 - `resource_type` (String) The type of resource that the permissions relate to. Must be one of AUDIT_LOG, AUTHORIZATION, BATCH, CLUSTER_VARIABLE, COMPONENT, DECISION_DEFINITION, DECISION_REQUIREMENTS_DEFINITION, DOCUMENT, EXPRESSION, GLOBAL_LISTENER, GROUP, MAPPING_RULE, MESSAGE, PROCESS_DEFINITION, RESOURCE, ROLE, SYSTEM, TENANT, USER, or USER_TASK.
 
 ### Optional
