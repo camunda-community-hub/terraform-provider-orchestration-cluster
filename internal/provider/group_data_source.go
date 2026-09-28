@@ -172,11 +172,7 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	match := items[0]
 	data.Id = types.StringValue(match.GroupId)
 	data.Name = types.StringValue(match.Name)
-	if match.Description != nil {
-		data.Description = types.StringValue(*match.Description)
-	} else {
-		data.Description = types.StringValue("")
-	}
+	data.Description = optionalStringValue(match.Description)
 
 	tflog.Trace(ctx, "read group data source")
 
