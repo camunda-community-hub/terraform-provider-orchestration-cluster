@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -106,18 +108,22 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	// POST /groups/search is eventually consistent: a group created earlier in the same
 	// apply may not be searchable yet even though its own create already completed, and
 	// two same-named groups can be projected one at a time, so a single nonempty result
-	// doesn't prove uniqueness. lastCount tracks the previous poll's result count so the
-	// closure below can require it to be stable (unchanged and nonzero) across two
-	// consecutive polls before accepting it, rather than trusting the first nonzero
-	// count -- this narrows, but can't fully close, the race where a second duplicate
-	// lands in the gap between two "stable" polls; there's no uniqueness-guaranteed
-	// lookup available from this API to close it completely. hardErr captures any
+	// doesn't prove uniqueness. lastCount and lastGroupIDs track the previous poll's result
+	// so the closure below can require both the count and the exact set of group IDs to be
+	// stable (unchanged and nonzero) across two consecutive polls before accepting it --
+	// comparing IDs, not just the count, catches the case where a different single group
+	// happens to appear on each poll (e.g. a duplicate landing while another drops out of
+	// the projection), which a count-only comparison would wrongly treat as a confirmed
+	// unique match. This narrows, but can't fully close, the race where a second duplicate
+	// lands in the gap between two "stable" polls; there's no uniqueness-guaranteed lookup
+	// available from this API to close it completely. hardErr captures any
 	// transport/HTTP/decode failure from the closure so it can be distinguished below
 	// from a genuine "polled to timeout with zero matches" case; both are reported as an
 	// error by waitForConsistency, but only the latter is actually a "not found" signal.
 	// The request body is re-marshaled and a fresh reader constructed on every attempt,
 	// since an io.Reader can't be replayed after being consumed by a previous attempt.
 	lastCount := -1
+	var lastGroupIDs []string
 	var hardErr error
 	items, err := waitForConsistency(ctx, fmt.Sprintf("group named %q", name), func() ([]camunda.GroupResult, bool, error) {
 		hardErr = nil
@@ -149,8 +155,15 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		}
 
 		count := len(result.Items)
-		stable := count > 0 && count == lastCount
+		groupIDs := make([]string, count)
+		for i, item := range result.Items {
+			groupIDs[i] = item.GroupId
+		}
+		sort.Strings(groupIDs)
+
+		stable := count > 0 && count == lastCount && slices.Equal(groupIDs, lastGroupIDs)
 		lastCount = count
+		lastGroupIDs = groupIDs
 		return result.Items, stable, nil
 	})
 	if hardErr != nil {
