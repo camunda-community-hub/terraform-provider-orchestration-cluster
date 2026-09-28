@@ -371,11 +371,19 @@ func (r *AuthorizationResource) Create(ctx context.Context, req resource.CreateR
 	authKey := apiResp.JSON201.AuthorizationKey
 	data.Id = types.StringValue(authKey)
 
+	// Persist state from the plan plus the newly-assigned key before polling for read
+	// consistency, so a polling timeout or transport error doesn't orphan the authorization
+	// the API already created.
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// Re-read the full state from the engine, waiting out the eventual consistency of
 	// GetAuthorization: an immediate read right after a successful create can still 404.
 	getResp, err := readAuthorizationWithRetry(ctx, r.client, authKey)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read authorization after creation, got error: %s", err))
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("Authorization %q was created but could not be confirmed readable yet: %s. State was saved from the create response; a later refresh will pick up any drift.", authKey, err))
 		return
 	}
 
