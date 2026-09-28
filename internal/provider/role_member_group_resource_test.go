@@ -131,7 +131,7 @@ func checkRoleGroupAssignmentExistsInEngine() resource.TestCheckFunc {
 					return false, false, err
 				}
 				if searchResp.StatusCode() != 200 {
-					return false, false, nil
+					return false, false, fmt.Errorf("got HTTP error: %d: %s", searchResp.StatusCode(), searchResp.Body)
 				}
 				var rawResult struct {
 					Items []camunda.RoleGroupResult `json:"items"`
