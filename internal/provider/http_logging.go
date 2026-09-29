@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -33,7 +34,8 @@ var sensitiveBodyFields = map[string]bool{
 // loggingHTTPClient wraps an HttpRequestDoer and logs every request it sends
 // and response it receives via tflog.Debug, so that running Terraform with
 // TF_LOG=DEBUG surfaces the HTTP traffic between the provider and the
-// orchestration cluster API.
+// orchestration cluster API. When debug logging isn't enabled, requests pass
+// through untouched: bodies aren't read or re-buffered.
 type loggingHTTPClient struct {
 	inner camunda.HttpRequestDoer
 }
@@ -43,6 +45,10 @@ func newLoggingHTTPClient(inner camunda.HttpRequestDoer) camunda.HttpRequestDoer
 }
 
 func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	if !debugLoggingEnabled() {
+		return c.inner.Do(req)
+	}
+
 	ctx := req.Context()
 
 	fields := map[string]interface{}{
@@ -93,6 +99,27 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	tflog.Debug(ctx, "received HTTP response from orchestration cluster API", respFields)
 
 	return resp, nil
+}
+
+// debugLoggingEnabled reports whether Terraform's configured log level would
+// actually surface tflog.Debug output, mirroring the precedence
+// terraform-plugin-log itself applies (TF_LOG_PROVIDER overrides TF_LOG for
+// provider logs). It exists so the logging transport can skip the extra body
+// buffering/copying work entirely when that output wouldn't be emitted.
+func debugLoggingEnabled() bool {
+	for _, key := range []string{"TF_LOG_PROVIDER", "TF_LOG"} {
+		level, ok := os.LookupEnv(key)
+		if !ok || level == "" {
+			continue
+		}
+		switch strings.ToUpper(level) {
+		case "TRACE", "DEBUG", "JSON":
+			return true
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 func redactHeaders(headers http.Header) map[string]string {
