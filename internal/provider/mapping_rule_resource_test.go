@@ -44,9 +44,10 @@ func TestAccMappingRuleResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_mapping_rule.test",
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:                         "camundacluster_mapping_rule.test",
+				ImportState:                          true,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "mapping_rule_id",
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					return s.RootModule().Resources["camundacluster_mapping_rule.test"].Primary.Attributes["mapping_rule_id"], nil
 				},
