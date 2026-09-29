@@ -1,0 +1,1 @@
+terraform import camundacluster_tenant_member_client.ci acme/ci-pipeline
