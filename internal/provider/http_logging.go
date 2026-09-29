@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -53,7 +54,7 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 	fields := map[string]interface{}{
 		"http_method":  req.Method,
-		"http_url":     req.URL.String(),
+		"http_url":     redactURL(req.URL),
 		"http_headers": redactHeaders(req.Header),
 	}
 	if req.Body != nil {
@@ -73,7 +74,7 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		tflog.Debug(ctx, "HTTP request to orchestration cluster API failed", map[string]interface{}{
 			"http_method": req.Method,
-			"http_url":    req.URL.String(),
+			"http_url":    redactURL(req.URL),
 			"error":       err.Error(),
 		})
 		return resp, err
@@ -81,7 +82,7 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 	respFields := map[string]interface{}{
 		"http_method":  req.Method,
-		"http_url":     req.URL.String(),
+		"http_url":     redactURL(req.URL),
 		"http_status":  resp.Status,
 		"http_headers": redactHeaders(resp.Header),
 	}
@@ -120,6 +121,13 @@ func debugLoggingEnabled() bool {
 		}
 	}
 	return false
+}
+
+// redactURL returns u's string form with any embedded userinfo password
+// replaced, since url.URL.String() serializes it in plaintext (e.g. a
+// cluster URL configured as https://user:password@host).
+func redactURL(u *url.URL) string {
+	return u.Redacted()
 }
 
 func redactHeaders(headers http.Header) map[string]string {
