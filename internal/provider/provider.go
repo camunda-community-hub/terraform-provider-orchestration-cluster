@@ -118,7 +118,9 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 		return
 	}
 
-	var opts []camunda.ClientOption
+	opts := []camunda.ClientOption{
+		camunda.WithHTTPClient(newLoggingHTTPClient(&http.Client{})),
+	}
 
 	if data.BasicAuth != nil {
 		tflog.Trace(ctx, "will configure the Camunda client with basic auth")
