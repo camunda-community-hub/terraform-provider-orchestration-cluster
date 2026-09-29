@@ -18,8 +18,13 @@ func TestAccMappingRuleResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + testAccMappingRuleResourceConfig("groups", "admin", "Admin Mapping"),
+				Config: providerConfig + testAccMappingRuleResourceConfig("test-mapping-rule", "groups", "admin", "Admin Mapping"),
 				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"camundacluster_mapping_rule.test",
+						tfjsonpath.New("mapping_rule_id"),
+						knownvalue.StringExact("test-mapping-rule"),
+					),
 					statecheck.ExpectKnownValue(
 						"camundacluster_mapping_rule.test",
 						tfjsonpath.New("claim_name"),
@@ -48,7 +53,7 @@ func TestAccMappingRuleResource(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + testAccMappingRuleResourceConfig("groups", "operator", "Operator Mapping"),
+				Config: providerConfig + testAccMappingRuleResourceConfig("test-mapping-rule", "groups", "operator", "Operator Mapping"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_mapping_rule.test",
@@ -72,12 +77,13 @@ func TestAccMappingRuleResource(t *testing.T) {
 	})
 }
 
-func testAccMappingRuleResourceConfig(claimName, claimValue, name string) string {
+func testAccMappingRuleResourceConfig(mappingRuleId, claimName, claimValue, name string) string {
 	return fmt.Sprintf(`
 resource "camundacluster_mapping_rule" "test" {
-  claim_name  = "%s"
-  claim_value = "%s"
-  name        = "%s"
+  mapping_rule_id = "%s"
+  claim_name      = "%s"
+  claim_value     = "%s"
+  name            = "%s"
 }
-`, claimName, claimValue, name)
+`, mappingRuleId, claimName, claimValue, name)
 }
