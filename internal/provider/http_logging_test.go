@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
 )
 
@@ -100,6 +101,37 @@ func TestLoggingHTTPClient_SkipsBufferingWhenDebugDisabled(t *testing.T) {
 
 	if string(inner.gotBody) != `{"name":"widget"}` {
 		t.Fatalf("inner doer got body %q, want %q", inner.gotBody, `{"name":"widget"}`)
+	}
+}
+
+func TestRedactURL(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{
+			name: "strips embedded password",
+			url:  "https://user:s3cret@example.invalid/foo",
+			want: "https://user:xxxxx@example.invalid/foo",
+		},
+		{
+			name: "leaves URLs without userinfo unchanged",
+			url:  "https://example.invalid/foo?bar=baz",
+			want: "https://example.invalid/foo?bar=baz",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := url.Parse(tt.url)
+			if err != nil {
+				t.Fatalf("unexpected error parsing URL: %s", err)
+			}
+			if got := redactURL(u); got != tt.want {
+				t.Fatalf("redactURL(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
 	}
 }
 
