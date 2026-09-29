@@ -87,10 +87,13 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		"http_headers": redactHeaders(resp.Header),
 	}
 	if resp.Body != nil {
-		body, err := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		if err != nil {
-			return nil, err
+		if readErr != nil {
+			resp.Body = &errorReplayReadCloser{r: bytes.NewReader(body), err: readErr}
+			respFields["error"] = readErr.Error()
+			tflog.Debug(ctx, "received HTTP response from orchestration cluster API but failed to read its body", respFields)
+			return resp, nil
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 		if len(body) > 0 {
@@ -101,6 +104,26 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 	return resp, nil
 }
+
+// errorReplayReadCloser lets a caller read whatever bytes were buffered
+// before a response body read failed, then surfaces the original read error
+// once those bytes are exhausted. This preserves the semantics callers get
+// from an unwrapped http.Response.Body, where a stream error surfaces at
+// read time rather than from Do itself.
+type errorReplayReadCloser struct {
+	r   *bytes.Reader
+	err error
+}
+
+func (e *errorReplayReadCloser) Read(p []byte) (int, error) {
+	n, err := e.r.Read(p)
+	if err == io.EOF && n == 0 {
+		return 0, e.err
+	}
+	return n, err
+}
+
+func (e *errorReplayReadCloser) Close() error { return nil }
 
 // debugLoggingEnabled reports whether Terraform's configured log level would
 // actually surface tflog.Debug output, mirroring the precedence
