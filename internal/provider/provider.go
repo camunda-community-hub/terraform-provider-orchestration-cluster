@@ -219,6 +219,7 @@ func (p *CamundaClusterProvider) Resources(ctx context.Context) []func() resourc
 		NewRoleMemberUserResource,
 		NewRoleMemberClientResource,
 		NewRoleMemberGroupResource,
+		NewTenantMemberClientResource,
 	}
 }
 
