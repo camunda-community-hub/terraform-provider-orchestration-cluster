@@ -31,6 +31,9 @@ func (f *fakeDoer) Do(req *http.Request) (*http.Response, error) {
 // TestLoggingHTTPClient_PassesRequestBodyThrough verifies that logging the
 // request body doesn't consume it before the underlying Doer sees it.
 func TestLoggingHTTPClient_PassesRequestBodyThrough(t *testing.T) {
+	t.Setenv("TF_LOG", "DEBUG")
+	t.Setenv("TF_LOG_PROVIDER", "")
+
 	inner := &fakeDoer{
 		resp: &http.Response{
 			StatusCode: 200,
@@ -67,6 +70,36 @@ func TestLoggingHTTPClient_PassesRequestBodyThrough(t *testing.T) {
 	}
 	if string(body) != `{"ok":true}` {
 		t.Fatalf("got response body %q, want %q", body, `{"ok":true}`)
+	}
+}
+
+// TestLoggingHTTPClient_SkipsBufferingWhenDebugDisabled verifies that when
+// debug logging isn't enabled, the wrapper is a pure passthrough: it doesn't
+// touch the request body at all.
+func TestLoggingHTTPClient_SkipsBufferingWhenDebugDisabled(t *testing.T) {
+	t.Setenv("TF_LOG", "")
+	t.Setenv("TF_LOG_PROVIDER", "")
+
+	inner := &fakeDoer{
+		resp: &http.Response{
+			StatusCode: 200,
+			Status:     "200 OK",
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"ok":true}`))),
+		},
+	}
+	client := newLoggingHTTPClient(inner)
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.invalid/foo", bytes.NewReader([]byte(`{"name":"widget"}`)))
+	if err != nil {
+		t.Fatalf("unexpected error building request: %s", err)
+	}
+
+	if _, err := client.Do(req); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if string(inner.gotBody) != `{"name":"widget"}` {
+		t.Fatalf("inner doer got body %q, want %q", inner.gotBody, `{"name":"widget"}`)
 	}
 }
 
@@ -128,6 +161,44 @@ func TestRedactBody(t *testing.T) {
 			got := redactBody([]byte(tt.body))
 			if got != tt.want {
 				t.Fatalf("redactBody(%q) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDebugLoggingEnabled(t *testing.T) {
+	tests := []struct {
+		name        string
+		tfLog       string
+		tfLogSet    bool
+		providerLog string
+		providerSet bool
+		want        bool
+	}{
+		{name: "nothing set", want: false},
+		{name: "TF_LOG=DEBUG", tfLog: "DEBUG", tfLogSet: true, want: true},
+		{name: "TF_LOG=trace lowercase", tfLog: "trace", tfLogSet: true, want: true},
+		{name: "TF_LOG=WARN", tfLog: "WARN", tfLogSet: true, want: false},
+		{name: "TF_LOG_PROVIDER overrides TF_LOG when set", tfLog: "DEBUG", tfLogSet: true, providerLog: "WARN", providerSet: true, want: false},
+		{name: "TF_LOG_PROVIDER=JSON enables regardless of TF_LOG", tfLog: "WARN", tfLogSet: true, providerLog: "JSON", providerSet: true, want: true},
+		{name: "TF_LOG_PROVIDER empty falls back to TF_LOG", tfLog: "DEBUG", tfLogSet: true, providerLog: "", providerSet: false, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.tfLogSet {
+				t.Setenv("TF_LOG", tt.tfLog)
+			} else {
+				t.Setenv("TF_LOG", "")
+			}
+			if tt.providerSet {
+				t.Setenv("TF_LOG_PROVIDER", tt.providerLog)
+			} else {
+				t.Setenv("TF_LOG_PROVIDER", "")
+			}
+
+			if got := debugLoggingEnabled(); got != tt.want {
+				t.Fatalf("debugLoggingEnabled() = %v, want %v", got, tt.want)
 			}
 		})
 	}
