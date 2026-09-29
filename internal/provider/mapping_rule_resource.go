@@ -167,9 +167,24 @@ func (r *MappingRuleResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	apiResp, err := readMappingRuleWithRetry(ctx, r.client, data.MappingRuleId.ValueString())
+	apiResp, err := r.client.GetMappingRuleWithResponse(ctx, data.MappingRuleId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read mapping rule '%s', got error: %s", data.MappingRuleId.ValueString(), err))
+		return
+	}
+
+	if apiResp.StatusCode() == http.StatusNotFound {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	if apiResp.StatusCode() != http.StatusOK {
+		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading mapping rule '%s', got HTTP error: %d", data.MappingRuleId.ValueString(), apiResp.StatusCode()))
+		return
+	}
+
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
@@ -240,8 +255,8 @@ func (r *MappingRuleResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	if apiResp.StatusCode() != http.StatusNoContent {
-		resp.Diagnostics.AddError("Not Deleted", fmt.Sprintf("Error while deleting mapping rule, got HTTP error: %d", apiResp.StatusCode()))
+	if apiResp.StatusCode() != http.StatusNoContent && apiResp.StatusCode() != http.StatusNotFound {
+		resp.Diagnostics.AddError("Not Deleted", fmt.Sprintf("Error while deleting mapping rule, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
 		return
 	}
 }
@@ -259,7 +274,14 @@ func readMappingRuleWithRetry(ctx context.Context, client *camunda.ClientWithRes
 			return nil, false, err
 		}
 
-		return readResp, readResp.StatusCode() == http.StatusOK, nil
+		switch readResp.StatusCode() {
+		case http.StatusOK:
+			return readResp, true, nil
+		case http.StatusNotFound:
+			return readResp, false, nil
+		default:
+			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+		}
 	})
 }
 
