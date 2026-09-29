@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -17,6 +18,16 @@ var sensitiveHeaders = map[string]bool{
 	"authorization": true,
 	"cookie":        true,
 	"set-cookie":    true,
+}
+
+// sensitiveBodyFields lists JSON body field names (matched case-insensitively)
+// whose values must be redacted before logging, since they carry credentials
+// (e.g. UserRequest.Password in pkg/camunda/8.9/client.gen.go).
+var sensitiveBodyFields = map[string]bool{
+	"password":      true,
+	"secret":        true,
+	"client_secret": true,
+	"token":         true,
 }
 
 // loggingHTTPClient wraps an HttpRequestDoer and logs every request it sends
@@ -47,7 +58,7 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		}
 		req.Body = io.NopCloser(bytes.NewReader(body))
 		if len(body) > 0 {
-			fields["http_request_body"] = string(body)
+			fields["http_request_body"] = redactBody(body)
 		}
 	}
 	tflog.Debug(ctx, "sending HTTP request to orchestration cluster API", fields)
@@ -76,7 +87,7 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 		if len(body) > 0 {
-			respFields["http_response_body"] = string(body)
+			respFields["http_response_body"] = redactBody(body)
 		}
 	}
 	tflog.Debug(ctx, "received HTTP response from orchestration cluster API", respFields)
@@ -94,4 +105,39 @@ func redactHeaders(headers http.Header) map[string]string {
 		redacted[name] = strings.Join(values, ", ")
 	}
 	return redacted
+}
+
+// redactBody returns a JSON request/response body with sensitive field
+// values (see sensitiveBodyFields) replaced before logging. If the body
+// isn't valid JSON, its raw content is never logged.
+func redactBody(body []byte) string {
+	var parsed interface{}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "<non-JSON body omitted>"
+	}
+
+	redactJSONValue(parsed)
+
+	redacted, err := json.Marshal(parsed)
+	if err != nil {
+		return "<body omitted: failed to re-encode after redaction>"
+	}
+	return string(redacted)
+}
+
+func redactJSONValue(v interface{}) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for key, child := range val {
+			if sensitiveBodyFields[strings.ToLower(key)] {
+				val[key] = "REDACTED"
+				continue
+			}
+			redactJSONValue(child)
+		}
+	case []interface{}:
+		for _, child := range val {
+			redactJSONValue(child)
+		}
+	}
 }

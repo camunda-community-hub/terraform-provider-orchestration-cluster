@@ -89,3 +89,46 @@ func TestRedactHeaders(t *testing.T) {
 		t.Fatalf("Content-Type header unexpectedly changed: %q", redacted["Content-Type"])
 	}
 }
+
+func TestRedactBody(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "redacts top-level password",
+			body: `{"username":"alice","password":"s3cret"}`,
+			want: `{"password":"REDACTED","username":"alice"}`,
+		},
+		{
+			name: "redacts nested sensitive fields",
+			body: `{"user":{"name":"alice","password":"s3cret"},"oidc":{"client_secret":"abc"}}`,
+			want: `{"oidc":{"client_secret":"REDACTED"},"user":{"name":"alice","password":"REDACTED"}}`,
+		},
+		{
+			name: "redacts sensitive fields inside arrays",
+			body: `[{"password":"s3cret"},{"name":"bob"}]`,
+			want: `[{"password":"REDACTED"},{"name":"bob"}]`,
+		},
+		{
+			name: "leaves non-sensitive bodies unchanged",
+			body: `{"name":"widget","count":3}`,
+			want: `{"count":3,"name":"widget"}`,
+		},
+		{
+			name: "non-JSON body is never logged raw",
+			body: `not json`,
+			want: `<non-JSON body omitted>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := redactBody([]byte(tt.body))
+			if got != tt.want {
+				t.Fatalf("redactBody(%q) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
+	}
+}
