@@ -2,11 +2,31 @@ package provider
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"testing"
 )
+
+// partialErrorReader yields data once, then returns err on every subsequent
+// Read, simulating a response body stream that fails partway through.
+type partialErrorReader struct {
+	data []byte
+	err  error
+	pos  int
+}
+
+func (r *partialErrorReader) Read(p []byte) (int, error) {
+	if r.pos < len(r.data) {
+		n := copy(p, r.data[r.pos:])
+		r.pos += n
+		return n, nil
+	}
+	return 0, r.err
+}
+
+func (r *partialErrorReader) Close() error { return nil }
 
 type fakeDoer struct {
 	resp        *http.Response
@@ -101,6 +121,51 @@ func TestLoggingHTTPClient_SkipsBufferingWhenDebugDisabled(t *testing.T) {
 
 	if string(inner.gotBody) != `{"name":"widget"}` {
 		t.Fatalf("inner doer got body %q, want %q", inner.gotBody, `{"name":"widget"}`)
+	}
+}
+
+// TestLoggingHTTPClient_PreservesResponseOnBodyReadError verifies that a
+// response body read failure under debug logging still surfaces the caller's
+// response (status/headers) and the partial body, with the read error only
+// encountered when the caller reads resp.Body — matching the semantics of an
+// unwrapped http.Response.Body.
+func TestLoggingHTTPClient_PreservesResponseOnBodyReadError(t *testing.T) {
+	t.Setenv("TF_LOG", "DEBUG")
+	t.Setenv("TF_LOG_PROVIDER", "")
+
+	wantErr := errors.New("connection reset by peer")
+	inner := &fakeDoer{
+		resp: &http.Response{
+			StatusCode: 200,
+			Status:     "200 OK",
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       &partialErrorReader{data: []byte(`{"partial":`), err: wantErr},
+		},
+	}
+	client := newLoggingHTTPClient(inner)
+
+	req, err := http.NewRequest(http.MethodGet, "https://example.invalid/foo", nil)
+	if err != nil {
+		t.Fatalf("unexpected error building request: %s", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Do returned an error %q, want the read error to surface from resp.Body instead", err)
+	}
+	if resp == nil {
+		t.Fatal("Do returned a nil response, want the response with its status/headers preserved")
+	}
+	if resp.Status != "200 OK" {
+		t.Fatalf("resp.Status = %q, want %q", resp.Status, "200 OK")
+	}
+
+	body, readErr := io.ReadAll(resp.Body)
+	if string(body) != `{"partial":` {
+		t.Fatalf("got partial body %q, want %q", body, `{"partial":`)
+	}
+	if !errors.Is(readErr, wantErr) {
+		t.Fatalf("got read error %v, want %v", readErr, wantErr)
 	}
 }
 
