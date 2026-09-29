@@ -93,7 +93,7 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			resp.Body = &errorReplayReadCloser{r: bytes.NewReader(body), err: readErr}
 			respFields["error"] = readErr.Error()
 			tflog.Debug(ctx, "received HTTP response from orchestration cluster API but failed to read its body", respFields)
-			return resp, nil
+			return resp, nil //nolint:nilerr // readErr is deliberately deferred to resp.Body's Read, not returned here
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 		if len(body) > 0 {
