@@ -132,11 +132,8 @@ func (r *MappingRuleResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	mappingRuleId := apiResp.JSON201.MappingRuleId
-
-	_, err = readMappingRuleWithRetry(ctx, r.client, mappingRuleId)
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read mapping rule after creation, got error: %s", err))
+	if apiResp.JSON201 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 201 but with no parseable JSON body")
 		return
 	}
 
@@ -145,12 +142,19 @@ func (r *MappingRuleResource) Create(ctx context.Context, req resource.CreateReq
 	data.ClaimValue = types.StringValue(apiResp.JSON201.ClaimValue)
 	data.Name = types.StringValue(apiResp.JSON201.Name)
 
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "created mapping rule resource")
-
-	// Save data into Terraform state
+	// Persist state from the create response before polling for read consistency, so a
+	// polling timeout or transport error doesn't orphan the mapping rule the API already created.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if _, err := readMappingRuleWithRetry(ctx, r.client, apiResp.JSON201.MappingRuleId); err != nil {
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("Mapping rule %q was created but could not be confirmed readable yet: %s. State was saved from the create response; a later refresh will pick up any drift.", apiResp.JSON201.MappingRuleId, err))
+		return
+	}
+
+	tflog.Trace(ctx, "created mapping rule resource")
 }
 
 func (r *MappingRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
