@@ -80,9 +80,13 @@ func (c *loggingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
+	respURL := req.URL
+	if resp.Request != nil && resp.Request.URL != nil {
+		respURL = resp.Request.URL
+	}
 	respFields := map[string]interface{}{
 		"http_method":  req.Method,
-		"http_url":     redactURL(req.URL),
+		"http_url":     redactURL(respURL),
 		"http_status":  resp.Status,
 		"http_headers": redactHeaders(resp.Header),
 	}

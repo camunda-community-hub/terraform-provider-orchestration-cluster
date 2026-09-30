@@ -2,11 +2,14 @@ package provider
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-log/tflogtest"
 )
 
 // partialErrorReader yields data once, then returns err on every subsequent
@@ -166,6 +169,62 @@ func TestLoggingHTTPClient_PreservesResponseOnBodyReadError(t *testing.T) {
 	}
 	if !errors.Is(readErr, wantErr) {
 		t.Fatalf("got read error %v, want %v", readErr, wantErr)
+	}
+}
+
+// TestLoggingHTTPClient_LogsFinalURLAfterRedirect verifies that when the
+// inner Doer follows a redirect (as http.Client.Do does internally), the
+// response is logged with the final URL that actually produced it, not the
+// original pre-redirect request URL.
+func TestLoggingHTTPClient_LogsFinalURLAfterRedirect(t *testing.T) {
+	t.Setenv("TF_LOG", "DEBUG")
+	t.Setenv("TF_LOG_PROVIDER", "")
+
+	finalURL, err := url.Parse("https://example.invalid/bar")
+	if err != nil {
+		t.Fatalf("unexpected error parsing URL: %s", err)
+	}
+
+	inner := &fakeDoer{
+		resp: &http.Response{
+			StatusCode: 200,
+			Status:     "200 OK",
+			Body:       io.NopCloser(bytes.NewReader(nil)),
+			Request:    &http.Request{URL: finalURL},
+		},
+	}
+	client := newLoggingHTTPClient(inner)
+
+	var logs bytes.Buffer
+	ctx := tflogtest.RootLogger(context.Background(), &logs)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://example.invalid/foo", nil)
+	if err != nil {
+		t.Fatalf("unexpected error building request: %s", err)
+	}
+
+	if _, err := client.Do(req); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	entries, err := tflogtest.MultilineJSONDecode(&logs)
+	if err != nil {
+		t.Fatalf("unexpected error decoding log output: %s", err)
+	}
+
+	var gotURL string
+	var found bool
+	for _, entry := range entries {
+		if entry["@message"] == "received HTTP response from orchestration cluster API" {
+			gotURL, _ = entry["http_url"].(string)
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("did not find the expected response log entry")
+	}
+	if want := "https://example.invalid/bar"; gotURL != want {
+		t.Fatalf("logged http_url = %q, want the final (post-redirect) URL %q", gotURL, want)
 	}
 }
 
