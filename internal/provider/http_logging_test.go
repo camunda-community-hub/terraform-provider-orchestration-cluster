@@ -370,6 +370,16 @@ func TestRedactBody(t *testing.T) {
 			body: `not json`,
 			want: `<non-JSON body omitted>`,
 		},
+		{
+			name: "preserves large integers beyond float64 precision",
+			body: `{"timestamp":9007199254740993}`,
+			want: `{"timestamp":9007199254740993}`,
+		},
+		{
+			name: "rejects trailing JSON data like Unmarshal does",
+			body: `{"name":"widget"}{"name":"widget2"}`,
+			want: `<non-JSON body omitted>`,
+		},
 	}
 
 	for _, tt := range tests {
