@@ -15,21 +15,20 @@ import (
 )
 
 // sensitiveHeaders lists request/response headers whose values must never be
-// written to logs, since they carry credentials.
+// written to logs, since they carry credentials. The orchestration cluster
+// API's OpenAPI spec (spec/8.9/bundled-api.yaml) only defines Bearer and
+// Basic auth, both carried in Authorization; it has no cookie-based auth.
 var sensitiveHeaders = map[string]bool{
 	"authorization": true,
-	"cookie":        true,
-	"set-cookie":    true,
 }
 
 // sensitiveBodyFields lists JSON body field names (matched case-insensitively)
-// whose values must be redacted before logging, since they carry credentials
-// (e.g. UserRequest.Password in pkg/camunda/8.9/client.gen.go).
+// whose values must be redacted before logging, since they carry credentials.
+// password (UserRequest.Password in pkg/camunda/8.9/client.gen.go) is the
+// only credential-bearing field in the orchestration cluster API's OpenAPI
+// spec (spec/8.9/bundled-api.yaml).
 var sensitiveBodyFields = map[string]bool{
-	"password":      true,
-	"secret":        true,
-	"client_secret": true,
-	"token":         true,
+	"password": true,
 }
 
 // loggingHTTPClient wraps an HttpRequestDoer and logs every request it sends

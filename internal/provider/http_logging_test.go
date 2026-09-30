@@ -111,7 +111,6 @@ func TestLoggingHTTPClient_RedactsCredentialsInEmittedLogs(t *testing.T) {
 		resp: &http.Response{
 			StatusCode: 200,
 			Status:     "200 OK",
-			Header:     http.Header{"Set-Cookie": []string{"session=resp-secret-cookie"}},
 			Body:       io.NopCloser(bytes.NewReader([]byte(`{"username":"alice","password":"resp-secret-password"}`))),
 		},
 	}
@@ -126,7 +125,6 @@ func TestLoggingHTTPClient_RedactsCredentialsInEmittedLogs(t *testing.T) {
 		t.Fatalf("unexpected error building request: %s", err)
 	}
 	req.Header.Set("Authorization", "Bearer req-secret-token")
-	req.Header.Set("Cookie", "session=req-secret-cookie")
 
 	if _, err := client.Do(req); err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -141,8 +139,7 @@ func TestLoggingHTTPClient_RedactsCredentialsInEmittedLogs(t *testing.T) {
 	}
 
 	secrets := []string{
-		"req-secret-token", "req-secret-cookie", "req-secret-password",
-		"resp-secret-cookie", "resp-secret-password",
+		"req-secret-token", "req-secret-password", "resp-secret-password",
 	}
 	for _, entry := range entries {
 		dump := fmt.Sprintf("%v", entry)
@@ -322,7 +319,6 @@ func TestRedactURL(t *testing.T) {
 func TestRedactHeaders(t *testing.T) {
 	headers := http.Header{
 		"Authorization": []string{"Bearer secret-token"},
-		"Cookie":        []string{"session=abc123"},
 		"Content-Type":  []string{"application/json"},
 	}
 
@@ -330,9 +326,6 @@ func TestRedactHeaders(t *testing.T) {
 
 	if redacted["Authorization"] != "REDACTED" {
 		t.Fatalf("Authorization header not redacted: %q", redacted["Authorization"])
-	}
-	if redacted["Cookie"] != "REDACTED" {
-		t.Fatalf("Cookie header not redacted: %q", redacted["Cookie"])
 	}
 	if redacted["Content-Type"] != "application/json" {
 		t.Fatalf("Content-Type header unexpectedly changed: %q", redacted["Content-Type"])
@@ -352,8 +345,8 @@ func TestRedactBody(t *testing.T) {
 		},
 		{
 			name: "redacts nested sensitive fields",
-			body: `{"user":{"name":"alice","password":"s3cret"},"oidc":{"client_secret":"abc"}}`,
-			want: `{"oidc":{"client_secret":"REDACTED"},"user":{"name":"alice","password":"REDACTED"}}`,
+			body: `{"user":{"name":"alice","password":"s3cret"}}`,
+			want: `{"user":{"name":"alice","password":"REDACTED"}}`,
 		},
 		{
 			name: "redacts sensitive fields inside arrays",
