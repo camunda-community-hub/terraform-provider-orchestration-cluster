@@ -380,6 +380,11 @@ func TestRedactBody(t *testing.T) {
 			body: `{"name":"widget"}{"name":"widget2"}`,
 			want: `<non-JSON body omitted>`,
 		},
+		{
+			name: "rejects a stray trailing brace after a valid object",
+			body: `{"name":"widget"}}`,
+			want: `<non-JSON body omitted>`,
+		},
 	}
 
 	for _, tt := range tests {

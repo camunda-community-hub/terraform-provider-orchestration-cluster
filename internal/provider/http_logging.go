@@ -176,7 +176,11 @@ func redactBody(body []byte) string {
 	var parsed interface{}
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber()
-	if err := dec.Decode(&parsed); err != nil || dec.More() {
+	if err := dec.Decode(&parsed); err != nil {
+		return "<non-JSON body omitted>"
+	}
+	var extra interface{}
+	if err := dec.Decode(&extra); err != io.EOF {
 		return "<non-JSON body omitted>"
 	}
 
