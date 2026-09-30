@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-log/tflogtest"
@@ -94,6 +96,64 @@ func TestLoggingHTTPClient_PassesRequestBodyThrough(t *testing.T) {
 	}
 	if string(body) != `{"ok":true}` {
 		t.Fatalf("got response body %q, want %q", body, `{"ok":true}`)
+	}
+}
+
+// TestLoggingHTTPClient_RedactsCredentialsInEmittedLogs verifies the actual
+// tflog.Debug output for a credential-bearing request and response: none of
+// the sensitive header or body values may appear anywhere in the emitted log
+// entries, while ordinary data must still come through.
+func TestLoggingHTTPClient_RedactsCredentialsInEmittedLogs(t *testing.T) {
+	t.Setenv("TF_LOG", "DEBUG")
+	t.Setenv("TF_LOG_PROVIDER", "")
+
+	inner := &fakeDoer{
+		resp: &http.Response{
+			StatusCode: 200,
+			Status:     "200 OK",
+			Header:     http.Header{"Set-Cookie": []string{"session=resp-secret-cookie"}},
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"username":"alice","password":"resp-secret-password"}`))),
+		},
+	}
+	client := newLoggingHTTPClient(inner)
+
+	var logs bytes.Buffer
+	ctx := tflogtest.RootLogger(context.Background(), &logs)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://example.invalid/foo",
+		bytes.NewReader([]byte(`{"username":"alice","password":"req-secret-password"}`)))
+	if err != nil {
+		t.Fatalf("unexpected error building request: %s", err)
+	}
+	req.Header.Set("Authorization", "Bearer req-secret-token")
+	req.Header.Set("Cookie", "session=req-secret-cookie")
+
+	if _, err := client.Do(req); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	entries, err := tflogtest.MultilineJSONDecode(&logs)
+	if err != nil {
+		t.Fatalf("unexpected error decoding log output: %s", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d log entries, want 2 (request + response)", len(entries))
+	}
+
+	secrets := []string{
+		"req-secret-token", "req-secret-cookie", "req-secret-password",
+		"resp-secret-cookie", "resp-secret-password",
+	}
+	for _, entry := range entries {
+		dump := fmt.Sprintf("%v", entry)
+		for _, secret := range secrets {
+			if strings.Contains(dump, secret) {
+				t.Fatalf("log entry leaked credential %q: %v", secret, entry)
+			}
+		}
+		if !strings.Contains(dump, "alice") {
+			t.Fatalf("log entry dropped ordinary data alongside redaction: %v", entry)
+		}
 	}
 }
 
