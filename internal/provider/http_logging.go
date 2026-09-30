@@ -174,7 +174,9 @@ func redactHeaders(headers http.Header) map[string]string {
 // isn't valid JSON, its raw content is never logged.
 func redactBody(body []byte) string {
 	var parsed interface{}
-	if err := json.Unmarshal(body, &parsed); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	if err := dec.Decode(&parsed); err != nil || dec.More() {
 		return "<non-JSON body omitted>"
 	}
 
