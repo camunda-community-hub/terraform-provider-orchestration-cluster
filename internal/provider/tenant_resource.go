@@ -165,9 +165,8 @@ func (r *TenantResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	_, err = readTenantWithRetry(ctx, r.client, data.TenantId.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read tenant after creation, got error: %s", err))
+	if apiResp.JSON201 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 201 but with no parseable JSON body")
 		return
 	}
 
@@ -176,12 +175,19 @@ func (r *TenantResource) Create(ctx context.Context, req resource.CreateRequest,
 	data.Name = types.StringValue(apiResp.JSON201.Name)
 	data.Description = optionalStringValue(apiResp.JSON201.Description)
 
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "created tenant resource")
-
-	// Save data into Terraform state
+	// Persist state from the create response before polling for read consistency, so a
+	// polling timeout or transport error doesn't orphan the tenant the API already created.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if _, err := readTenantWithRetry(ctx, r.client, apiResp.JSON201.TenantId); err != nil {
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("Tenant %q was created but could not be confirmed readable yet: %s. State was saved from the create response; a later refresh will pick up any drift.", apiResp.JSON201.TenantId, err))
+		return
+	}
+
+	tflog.Trace(ctx, "created tenant resource")
 }
 
 func (r *TenantResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -207,6 +213,11 @@ func (r *TenantResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	if apiResp.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read tenant '%s', got HTTP error: %d: %s", data.TenantId.ValueString(), apiResp.StatusCode(), apiResp.Body))
+		return
+	}
+
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
@@ -248,6 +259,11 @@ func (r *TenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 	readResp, err := readTenantUntilConsistent(ctx, r.client, data.TenantId.ValueString(), data.Name.ValueString(), data.Description.ValueStringPointer())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm tenant update, got error: %s", err))
+		return
+	}
+
+	if readResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
