@@ -129,7 +129,7 @@ func (d *TenantDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 		readResp, err := readTenantWithRetry(ctx, d.client, tenantId)
 		if err != nil {
-			resp.Diagnostics.AddError("Not Found", fmt.Sprintf("Unable to read tenant '%s': %s", tenantId, err))
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read tenant '%s': %s", tenantId, err))
 			return
 		}
 		tenant = readResp.JSON200
