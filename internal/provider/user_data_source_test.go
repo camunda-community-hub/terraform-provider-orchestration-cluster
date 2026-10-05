@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -9,14 +10,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-func TestAccExampleDataSource(t *testing.T) {
+func TestAccUserDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Read testing
 			{
-				Config: providerConfig + testAccExampleDataSourceConfig,
+				Config: providerConfig + testAccUserDataSourceConfig,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"data.camundacluster_user.demo",
@@ -33,14 +34,35 @@ func TestAccExampleDataSource(t *testing.T) {
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Demo User"),
 					),
-					// TODO: test password unset
+					statecheck.ExpectKnownValue(
+						"data.camundacluster_user.demo",
+						tfjsonpath.New("email"),
+						knownvalue.StringExact("demo@demo.com"),
+					),
 				},
 			},
 		},
 	})
 }
 
-const testAccExampleDataSourceConfig = `
+func TestAccUserDataSource_NotFound(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: providerConfig + `
+data "camundacluster_user" "missing" {
+  username = "does-not-exist-user"
+}
+`,
+				ExpectError: regexp.MustCompile(`Unable to read user 'does-not-exist-user'`),
+			},
+		},
+	})
+}
+
+const testAccUserDataSourceConfig = `
 data "camundacluster_user" "demo" {
   username = "demo"
 }
