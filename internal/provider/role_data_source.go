@@ -163,7 +163,16 @@ func (d *RoleDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		return
 	}
 
-	readResp, err := readRoleWithRetry(ctx, d.client, items[0].RoleId)
+	// The by-ID GET is a separate eventually consistent projection from the name search, so
+	// during a rename it can already report the new name for an ID the search still returns
+	// for the old one. Poll until the fetched role actually carries the requested name.
+	readResp, err := readUntilConsistent(ctx, fmt.Sprintf("role named %q", name),
+		func() (*camunda.GetRoleResponse, error) {
+			return readRoleWithRetry(ctx, d.client, items[0].RoleId)
+		},
+		func(readResp *camunda.GetRoleResponse) (bool, error) {
+			return readResp.JSON200 != nil && readResp.JSON200.Name == name, nil
+		})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read role '%s', got error: %s", items[0].RoleId, err))
 		return

@@ -163,7 +163,16 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	readResp, err := readGroupWithRetry(ctx, d.client, items[0].GroupId)
+	// The by-ID GET is a separate eventually consistent projection from the name search, so
+	// during a rename it can already report the new name for an ID the search still returns
+	// for the old one. Poll until the fetched group actually carries the requested name.
+	readResp, err := readUntilConsistent(ctx, fmt.Sprintf("group named %q", name),
+		func() (*camunda.GetGroupResponse, error) {
+			return readGroupWithRetry(ctx, d.client, items[0].GroupId)
+		},
+		func(readResp *camunda.GetGroupResponse) (bool, error) {
+			return readResp.JSON200 != nil && readResp.JSON200.Name == name, nil
+		})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read group '%s', got error: %s", items[0].GroupId, err))
 		return
