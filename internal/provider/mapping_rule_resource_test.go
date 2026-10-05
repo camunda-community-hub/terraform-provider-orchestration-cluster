@@ -21,7 +21,7 @@ func TestAccMappingRuleResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + testAccMappingRuleResourceConfig("test-mapping-rule", "groups", "admin", "Admin Mapping"),
+				Config: providerConfig + testAccMappingRuleResourceConfig("test-mapping-rule", "admin", "Admin Mapping"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_mapping_rule.test",
@@ -57,7 +57,7 @@ func TestAccMappingRuleResource(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + testAccMappingRuleResourceConfig("test-mapping-rule", "groups", "operator", "Operator Mapping"),
+				Config: providerConfig + testAccMappingRuleResourceConfig("test-mapping-rule", "operator", "Operator Mapping"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"camundacluster_mapping_rule.test",
@@ -81,22 +81,22 @@ func TestAccMappingRuleResource(t *testing.T) {
 	})
 }
 
-func testAccMappingRuleResourceConfig(mappingRuleId, claimName, claimValue, name string) string {
+func testAccMappingRuleResourceConfig(mappingRuleId, claimValue, name string) string {
 	return fmt.Sprintf(`
 resource "camundacluster_mapping_rule" "test" {
   mapping_rule_id = "%s"
-  claim_name      = "%s"
+  claim_name      = "groups"
   claim_value     = "%s"
   name            = "%s"
 }
-`, mappingRuleId, claimName, claimValue, name)
+`, mappingRuleId, claimValue, name)
 }
 
 func TestAccMappingRuleResource_DriftAndReplace(t *testing.T) {
 	runIdentityLifecycleTest(t, identityLifecycleCase{
 		address: "camundacluster_mapping_rule.test",
 		config: func(id string) string {
-			return testAccMappingRuleResourceConfig(id, "groups", "lifecycle", "Lifecycle Mapping")
+			return testAccMappingRuleResourceConfig(id, "lifecycle", "Lifecycle Mapping")
 		},
 		deleteInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
 			resp, err := client.DeleteMappingRuleWithResponse(ctx, id)
