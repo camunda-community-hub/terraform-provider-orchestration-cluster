@@ -47,14 +47,17 @@ func (d *ClusterTopologyDataSource) Schema(ctx context.Context, req datasource.S
 			"cluster_id": schema.StringAttribute{
 				MarkdownDescription: "The cluster Id",
 				Optional:            true,
+				Computed:            true,
 			},
 			"cluster_size": schema.Int32Attribute{
 				MarkdownDescription: "The number of brokers in the cluster.",
 				Optional:            true,
+				Computed:            true,
 			},
 			"gateway_version": schema.StringAttribute{
 				MarkdownDescription: "The version of the Zeebe Gateway.",
 				Optional:            true,
+				Computed:            true,
 			},
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The cluster Id",
@@ -63,10 +66,12 @@ func (d *ClusterTopologyDataSource) Schema(ctx context.Context, req datasource.S
 			"partitions_count": schema.Int32Attribute{
 				MarkdownDescription: "The number of partitions are spread across the cluster.",
 				Optional:            true,
+				Computed:            true,
 			},
 			"replication_factor": schema.Int32Attribute{
 				MarkdownDescription: "The configured replication factor for this cluster.",
 				Optional:            true,
+				Computed:            true,
 			},
 		},
 	}
@@ -114,8 +119,8 @@ func (d *ClusterTopologyDataSource) Read(ctx context.Context, req datasource.Rea
 	}
 
 	// Save the data into the state.
-	data.Id = types.StringValue(*topologyResp.JSON200.ClusterId)
-	data.ClusterId = types.StringValue(*topologyResp.JSON200.ClusterId)
+	data.ClusterId = types.StringPointerValue(topologyResp.JSON200.ClusterId)
+	data.Id = data.ClusterId
 	data.ClusterSize = types.Int32Value(topologyResp.JSON200.ClusterSize)
 	data.GatewayVersion = types.StringValue(topologyResp.JSON200.GatewayVersion)
 	data.PartitionsCount = types.Int32Value(topologyResp.JSON200.PartitionsCount)
