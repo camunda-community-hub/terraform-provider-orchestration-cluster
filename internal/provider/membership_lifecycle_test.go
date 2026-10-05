@@ -233,10 +233,10 @@ func TestMembershipResources_importInvalidId(t *testing.T) {
 	for _, def := range membershipLifecycleDefs {
 		t.Run(def.typeSuffix, func(t *testing.T) {
 			ctx := context.Background()
-			r := newMembershipResource(def).(resource.ResourceWithImportState)
+			r := &membershipResource{def: def}
 
 			var schemaResp resource.SchemaResponse
-			r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+			r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
 			newState := func() tfsdk.State {
 				return tfsdk.State{
 					Schema: schemaResp.Schema,
