@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -61,6 +62,9 @@ func runIdentityLifecycleTest(t *testing.T, tc identityLifecycleCase) {
 	})
 }
 
+// testDeleteOutOfBand deletes the object through the API, then repeats the delete
+// until the API reports 404, because reads are eventually consistent and Terraform's
+// refresh must not see a stale 200.
 func testDeleteOutOfBand(t *testing.T, tc identityLifecycleCase, id string) {
 	t.Helper()
 	client, err := camunda.NewClientWithResponses(testClusterURL)
@@ -73,5 +77,12 @@ func testDeleteOutOfBand(t *testing.T, tc identityLifecycleCase, id string) {
 	}
 	if status != http.StatusNoContent {
 		t.Fatalf("deleting %s out-of-band: unexpected HTTP status %d", id, status)
+	}
+	_, err = waitForConsistency(t.Context(), fmt.Sprintf("%s deletion", id), func() (int, bool, error) {
+		status, err := tc.deleteInEngine(t.Context(), client, id)
+		return status, status == http.StatusNotFound, err
+	})
+	if err != nil {
+		t.Fatalf("waiting for out-of-band deletion of %s: %s", id, err)
 	}
 }
