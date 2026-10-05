@@ -12,7 +12,7 @@ import (
 )
 
 // TestAccMappingRuleDataSource covers the camundacluster_mapping_rule data source: a
-// successful lookup by ID and the "Not Found" error for an unknown ID.
+// successful lookup by ID and the read error for an unknown ID.
 func TestAccMappingRuleDataSource(t *testing.T) {
 	const dataSource = "data.camundacluster_mapping_rule.test"
 
