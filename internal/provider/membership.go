@@ -334,11 +334,15 @@ func encodeMembershipId(ownerId, memberId string) string {
 
 // decodeMembershipId splits a composite ID created by encodeMembershipId. The two components
 // are percent-encoded before being joined, so splitting on the first "/" is unambiguous even
-// if an ID itself contains a "/": that "/" only ever appears escaped as "%2F".
+// if an ID itself contains a "/": that "/" only ever appears escaped as "%2F". An ID with more
+// than one unescaped "/" is therefore malformed and rejected.
 func decodeMembershipId(id string) (ownerId, memberId string, err error) {
 	parts := strings.SplitN(id, "/", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", fmt.Errorf("missing component")
+	}
+	if strings.Contains(parts[1], "/") {
+		return "", "", fmt.Errorf("unescaped \"/\" in second component")
 	}
 	if ownerId, err = url.PathUnescape(parts[0]); err != nil {
 		return "", "", fmt.Errorf("decoding first component: %w", err)
