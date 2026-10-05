@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -36,6 +38,9 @@ func (d *AuthorizationDataSource) Schema(ctx context.Context, req datasource.Sch
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The unique key of the authorization to look up (string-encoded int64).",
 				Required:            true,
+				Validators: []validator.String{
+					authorizationKeyValidator{},
+				},
 			},
 			"owner_type": schema.StringAttribute{
 				MarkdownDescription: "The type of the owner of permissions (USER, CLIENT, ROLE, GROUP, MAPPING_RULE, or UNSPECIFIED).",
@@ -65,6 +70,35 @@ func (d *AuthorizationDataSource) Schema(ctx context.Context, req datasource.Sch
 				Computed: true,
 			},
 		},
+	}
+}
+
+var authorizationKeyPattern = regexp.MustCompile(`^-?[0-9]+$`)
+
+// authorizationKeyValidator validates an authorization key against the API's LongKey
+// contract: an optionally negative integer string of 1 to 25 characters.
+type authorizationKeyValidator struct{}
+
+func (v authorizationKeyValidator) Description(ctx context.Context) string {
+	return "must be an integer string of 1 to 25 characters"
+}
+
+func (v authorizationKeyValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v authorizationKeyValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	value := req.ConfigValue.ValueString()
+	if len(value) > 25 || !authorizationKeyPattern.MatchString(value) {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Authorization Key",
+			fmt.Sprintf("id %q must be an integer string of 1 to 25 characters.", value),
+		)
 	}
 }
 
