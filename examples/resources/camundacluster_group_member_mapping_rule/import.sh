@@ -1,0 +1,1 @@
+terraform import camundacluster_group_member_mapping_rule.admin ops/admin-mapping
