@@ -276,7 +276,7 @@ func TestMembershipResources_importInvalidId(t *testing.T) {
 			}
 
 			wantFormat := fmt.Sprintf("<%s>/<%s>", def.ownerAttr(), def.memberAttr())
-			for _, bad := range []string{"", "onlyowner", "/member", "owner/", "%zz/member", "owner/%zz"} {
+			for _, bad := range []string{"", "onlyowner", "/member", "owner/", "%zz/member", "owner/%zz", "owner/member/extra", "owner//member"} {
 				resp := resource.ImportStateResponse{State: newState()}
 				r.ImportState(ctx, resource.ImportStateRequest{ID: bad}, &resp)
 				if !resp.Diagnostics.HasError() {
