@@ -67,8 +67,8 @@ func TestAccTenantDataSource(t *testing.T) {
 				ExpectError: regexp.MustCompile(`No tenant found with name`),
 			},
 			// Create two tenants sharing the same name to exercise the ambiguous path. The check
-			// waits on /tenants/search, the endpoint the data source queries (see
-			// waitForGroupSearchDuplicates).
+			// waits on /tenants/search, the endpoint the data source queries, via
+			// waitForTenantSearchDuplicates.
 			{
 				Config: providerConfig + testAccTenantDuplicateNameResourcesConfig("Duplicate Tenant Name"),
 				Check:  waitForTenantSearchDuplicates("Duplicate Tenant Name"),
