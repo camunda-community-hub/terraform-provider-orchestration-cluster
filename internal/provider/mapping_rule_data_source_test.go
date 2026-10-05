@@ -23,7 +23,7 @@ func TestAccMappingRuleDataSource(t *testing.T) {
 			// Found: look up a mapping rule created in the same configuration.
 			{
 				Config: providerConfig +
-					testAccMappingRuleResourceConfig("test-mapping-rule-ds", "groups", "ds-admin", "DS Mapping") +
+					testAccMappingRuleResourceConfig("test-mapping-rule-ds", "ds-admin", "DS Mapping") +
 					testAccMappingRuleDataSourceConfig("camundacluster_mapping_rule.test.mapping_rule_id"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(dataSource, tfjsonpath.New("mapping_rule_id"), knownvalue.StringExact("test-mapping-rule-ds")),
