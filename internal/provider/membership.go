@@ -36,7 +36,8 @@ type membershipDef struct {
 	// typeSuffix is appended to the provider name, e.g. "tenant_member_client".
 	typeSuffix string
 	// ownerLabel and memberLabel are the lower-case nouns used in descriptions and messages,
-	// e.g. "tenant" and "client". The attributes are named <label>_id.
+	// e.g. "tenant" and "client". The attributes are named <label>_id, so memberLabel may contain
+	// underscores ("mapping_rule").
 	ownerLabel, memberLabel string
 	// memberDescription overrides the default "The ID of the <memberLabel>." attribute description.
 	memberDescription string
@@ -50,6 +51,9 @@ type membershipDef struct {
 
 func (d membershipDef) ownerAttr() string  { return d.ownerLabel + "_id" }
 func (d membershipDef) memberAttr() string { return d.memberLabel + "_id" }
+
+// memberName is memberLabel as prose, e.g. "mapping rule".
+func (d membershipDef) memberName() string { return strings.ReplaceAll(d.memberLabel, "_", " ") }
 
 // decodeMembershipPage builds a membershipDef.decodePage for a search result whose items are
 // of type T, with idOf extracting the member ID from an item.
@@ -149,11 +153,11 @@ func (r *membershipResource) Schema(ctx context.Context, req resource.SchemaRequ
 	d := r.def
 	memberDescription := d.memberDescription
 	if memberDescription == "" {
-		memberDescription = fmt.Sprintf("The ID of the %s.", d.memberLabel)
+		memberDescription = fmt.Sprintf("The ID of the %s.", d.memberName())
 	}
 	requiresReplace := []planmodifier.String{stringplanmodifier.RequiresReplace()}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf("Assigns a %s to a Camunda cluster %s", d.memberLabel, d.ownerLabel),
+		MarkdownDescription: fmt.Sprintf("Assigns a %s to a Camunda cluster %s", d.memberName(), d.ownerLabel),
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -205,13 +209,13 @@ func (r *membershipResource) Create(ctx context.Context, req resource.CreateRequ
 
 	apiResp, err := d.assign(ctx, r.client, ownerId.ValueString(), memberId.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to assign %s to %s, got error: %s", d.memberLabel, d.ownerLabel, err))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to assign %s to %s, got error: %s", d.memberName(), d.ownerLabel, err))
 		return
 	}
 
 	// 409 means the assignment already exists: adopt it.
 	if apiResp.Status != http.StatusNoContent && apiResp.Status != http.StatusCreated && apiResp.Status != http.StatusOK && apiResp.Status != http.StatusConflict {
-		resp.Diagnostics.AddError("Assignment Error", fmt.Sprintf("Error while assigning %s to %s, got HTTP error: %d: %s", d.memberLabel, d.ownerLabel, apiResp.Status, apiResp.Body))
+		resp.Diagnostics.AddError("Assignment Error", fmt.Sprintf("Error while assigning %s to %s, got HTTP error: %d: %s", d.memberName(), d.ownerLabel, apiResp.Status, apiResp.Body))
 		return
 	}
 
@@ -237,7 +241,7 @@ func (r *membershipResource) Create(ctx context.Context, req resource.CreateRequ
 		return found, found, nil
 	})
 	if err != nil {
-		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("%s %q was assigned to %s %q but could not be confirmed yet: %s. State was saved from the assignment response; a later refresh will pick up any drift.", capitalize(d.memberLabel), memberId.ValueString(), d.ownerLabel, ownerId.ValueString(), err))
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("%s %q was assigned to %s %q but could not be confirmed yet: %s. State was saved from the assignment response; a later refresh will pick up any drift.", capitalize(d.memberName()), memberId.ValueString(), d.ownerLabel, ownerId.ValueString(), err))
 		return
 	}
 
@@ -259,7 +263,7 @@ func (r *membershipResource) Read(ctx context.Context, req resource.ReadRequest,
 			resp.State.RemoveResource(ctx)
 			return
 		}
-		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading %s %ss: %s", d.ownerLabel, d.memberLabel, err))
+		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading %s %ss: %s", d.ownerLabel, d.memberName(), err))
 		return
 	}
 
@@ -296,7 +300,7 @@ func (r *membershipResource) Delete(ctx context.Context, req resource.DeleteRequ
 
 	apiResp, err := d.unassign(ctx, r.client, ownerId.ValueString(), memberId.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to unassign %s from %s, got error: %s", d.memberLabel, d.ownerLabel, err))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to unassign %s from %s, got error: %s", d.memberName(), d.ownerLabel, err))
 		return
 	}
 
@@ -306,7 +310,7 @@ func (r *membershipResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 
 	if apiResp.Status != http.StatusNoContent && apiResp.Status != http.StatusOK {
-		resp.Diagnostics.AddError("Delete Error", fmt.Sprintf("Error while unassigning %s from %s, got HTTP error: %d: %s", d.memberLabel, d.ownerLabel, apiResp.Status, apiResp.Body))
+		resp.Diagnostics.AddError("Delete Error", fmt.Sprintf("Error while unassigning %s from %s, got HTTP error: %d: %s", d.memberName(), d.ownerLabel, apiResp.Status, apiResp.Body))
 		return
 	}
 
