@@ -161,7 +161,7 @@ func (v mutuallyExclusiveStringValidator) ValidateString(ctx context.Context, re
 // resource_property_name, while still allowing null (attribute omitted) and unknown values
 // through. It exists so an empty string configured for one of these scope attributes isn't
 // silently treated as "unset" by resolveAuthorizationRequestVariant. Unlike
-// nonEmptyStringValidator (tenant_resource.go), which hardcodes a description-specific
+// nonEmptyStringValidator (attributes.go), which hardcodes a description-specific
 // diagnostic, this validator derives its message from req.Path so it reads correctly on
 // whichever of the two attributes it is attached to.
 type nonEmptyScopeValidator struct{}
