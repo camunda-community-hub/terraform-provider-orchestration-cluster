@@ -69,8 +69,8 @@ func TestAccRoleDataSource(t *testing.T) {
 			// consistent while search still reflects only one of the two roles.
 			{
 				PreConfig: restoreConsistencyTimeout,
-				Config: providerConfig + testAccRoleDuplicateNameResourcesConfig("Duplicate Role Name"),
-				Check:  waitForRoleSearchDuplicates("Duplicate Role Name"),
+				Config:    providerConfig + testAccRoleDuplicateNameResourcesConfig("Duplicate Role Name"),
+				Check:     waitForRoleSearchDuplicates("Duplicate Role Name"),
 			},
 			// Ambiguous: the name matches more than one role.
 			{
