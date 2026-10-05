@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +18,11 @@ import (
 // objectOf builds an object value of type typ, setting unspecified attributes to null.
 func objectOf(typ tftypes.Type, vals map[string]tftypes.Value) tftypes.Value {
 	attrs := map[string]tftypes.Value{}
-	for name, attrType := range typ.(tftypes.Object).AttributeTypes {
+	obj, ok := typ.(tftypes.Object)
+	if !ok {
+		panic(fmt.Sprintf("objectOf: %T is not a tftypes.Object", typ))
+	}
+	for name, attrType := range obj.AttributeTypes {
 		if v, ok := vals[name]; ok {
 			attrs[name] = v
 		} else {
