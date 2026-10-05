@@ -176,6 +176,8 @@ To compile the provider, run `go install`. This will build the provider and put 
 
 To generate or update documentation, run `make generate`.
 
+[pre-commit](https://pre-commit.com) is expected in your local setup. Install it (for example `brew install pre-commit`) and enable the hooks once per clone with `pre-commit install`. The hooks run `gofmt -s` on staged Go files and regenerate the docs when provider, example or tools sources change, and the same hooks run as a required CI check, so unformatted code or stale docs fail the pull request. `make generate` needs `terraform` on your `PATH`. See [DEV.md](DEV.md#pre-commit-hooks) for details.
+
 In order to run the full suite of Acceptance tests, run `make testacc`.
 
 *Note:* Acceptance tests create real resources, and often cost money to run.
