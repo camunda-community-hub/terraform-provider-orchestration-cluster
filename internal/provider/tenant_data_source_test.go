@@ -72,8 +72,8 @@ func TestAccTenantDataSource(t *testing.T) {
 			// waitForTenantSearchDuplicates.
 			{
 				PreConfig: restoreConsistencyTimeout,
-				Config: providerConfig + testAccTenantDuplicateNameResourcesConfig("Duplicate Tenant Name"),
-				Check:  waitForTenantSearchDuplicates("Duplicate Tenant Name"),
+				Config:    providerConfig + testAccTenantDuplicateNameResourcesConfig("Duplicate Tenant Name"),
+				Check:     waitForTenantSearchDuplicates("Duplicate Tenant Name"),
 			},
 			// Ambiguous: the name matches more than one tenant.
 			{

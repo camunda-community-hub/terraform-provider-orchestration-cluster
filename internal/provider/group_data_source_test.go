@@ -68,8 +68,8 @@ func TestAccGroupDataSource(t *testing.T) {
 			// consistent while search still reflects only one of the two groups.
 			{
 				PreConfig: restoreConsistencyTimeout,
-				Config: providerConfig + testAccGroupDuplicateNameResourcesConfig("Duplicate Group Name"),
-				Check:  waitForGroupSearchDuplicates("Duplicate Group Name"),
+				Config:    providerConfig + testAccGroupDuplicateNameResourcesConfig("Duplicate Group Name"),
+				Check:     waitForGroupSearchDuplicates("Duplicate Group Name"),
 			},
 			// Ambiguous: the name matches more than one group.
 			{
