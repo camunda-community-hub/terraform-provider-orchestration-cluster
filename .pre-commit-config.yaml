@@ -1,0 +1,19 @@
+# Local hooks only: no third-party hook repositories are fetched.
+# Install once with `pre-commit install` (see DEV.md).
+repos:
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt -s
+        description: Format staged Go files (same flags as `make fmt`). A reformat fails the commit; re-add and commit again.
+        entry: gofmt -s -w -e
+        language: system
+        types: [go]
+
+      - id: generate-docs
+        name: make generate (docs and examples)
+        description: Regenerate docs when provider, example or tools sources change, so the CI generate job stays clean.
+        entry: scripts/pre-commit-generate.sh
+        language: system
+        pass_filenames: false
+        files: ^(internal/provider/(?!.*_test\.go$).*\.go|examples/.*|tools/.*|main\.go)$
