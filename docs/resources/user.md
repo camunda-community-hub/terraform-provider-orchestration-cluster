@@ -26,10 +26,13 @@ resource "camundacluster_user" "alice" {
 
 ### Required
 
-- `email` (String) The email of the user.
-- `name` (String) The name of the user.
 - `password` (String, Sensitive) The password of the user.
 - `username` (String) The unique name of a user.
+
+### Optional
+
+- `email` (String) The email of the user.
+- `name` (String) The name of the user.
 
 ### Read-Only
 
