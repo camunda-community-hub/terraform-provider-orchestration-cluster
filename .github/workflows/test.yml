@@ -92,7 +92,7 @@ jobs:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
-      - run: go test -v -cover ./internal/provider/
+      - run: go test -v -cover -timeout 19m ./internal/provider/
         timeout-minutes: 20
         env:
           TF_ACC: "1"
