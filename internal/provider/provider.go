@@ -238,6 +238,7 @@ func (p *CamundaClusterProvider) DataSources(ctx context.Context) []func() datas
 		NewUserDataSource,
 		NewGroupDataSource,
 		NewMappingRuleDataSource,
+		NewAuthorizationDataSource,
 		NewRoleDataSource,
 	}
 }
