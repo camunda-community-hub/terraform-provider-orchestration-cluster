@@ -8,41 +8,35 @@ import (
 	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
 
-var roleMemberUser = membershipDef{
-	typeSuffix:        "role_member_user",
-	ownerLabel:        "role",
+var tenantMemberUser = membershipDef{
+	typeSuffix:        "tenant_member_user",
+	ownerLabel:        "tenant",
 	memberLabel:       "user",
 	memberDescription: "The username of the user.",
 	assign: func(ctx context.Context, c *camunda.ClientWithResponses, ownerId, memberId string) (membershipResponse, error) {
-		r, err := c.AssignRoleToUserWithResponse(ctx, ownerId, memberId)
+		r, err := c.AssignUserToTenantWithResponse(ctx, ownerId, memberId)
 		if err != nil {
 			return membershipResponse{}, err
 		}
 		return membershipResponse{r.StatusCode(), r.Body}, nil
 	},
 	unassign: func(ctx context.Context, c *camunda.ClientWithResponses, ownerId, memberId string) (membershipResponse, error) {
-		r, err := c.UnassignRoleFromUserWithResponse(ctx, ownerId, memberId)
+		r, err := c.UnassignUserFromTenantWithResponse(ctx, ownerId, memberId)
 		if err != nil {
 			return membershipResponse{}, err
 		}
 		return membershipResponse{r.StatusCode(), r.Body}, nil
 	},
 	search: func(ctx context.Context, c *camunda.ClientWithResponses, ownerId string, body camunda.SearchQueryRequest) (membershipResponse, error) {
-		r, err := c.SearchUsersForRoleWithResponse(ctx, ownerId, body)
+		r, err := c.SearchUsersForTenantWithResponse(ctx, ownerId, body)
 		if err != nil {
 			return membershipResponse{}, err
 		}
 		return membershipResponse{r.StatusCode(), r.Body}, nil
 	},
-	decodePage: decodeMembershipPage(func(r camunda.RoleUserResult) string { return r.Username }),
+	decodePage: decodeMembershipPage(func(r camunda.TenantUserResult) string { return r.Username }),
 }
 
-func NewRoleMemberUserResource() resource.Resource {
-	return newMembershipResource(roleMemberUser)
-}
-
-// searchAllRoleUsers reports whether memberId is assigned to ownerId, paging through all of the role's users.
-// Returns an error with message "not_found" if the role itself is not found.
-func searchAllRoleUsers(ctx context.Context, client *camunda.ClientWithResponses, ownerId, memberId string) (bool, error) {
-	return roleMemberUser.contains(ctx, client, ownerId, memberId)
+func NewTenantMemberUserResource() resource.Resource {
+	return newMembershipResource(tenantMemberUser)
 }
