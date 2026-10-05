@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"slices"
-	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -108,75 +106,51 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	// POST /groups/search is eventually consistent: a group created earlier in the same
 	// apply may not be searchable yet even though its own create already completed, and
 	// two same-named groups can be projected one at a time, so a single nonempty result
-	// doesn't prove uniqueness. lastCount and lastGroupIDs track the previous poll's result
-	// so the closure below can require both the count and the exact set of group IDs to be
-	// stable (unchanged and nonzero) across two consecutive polls before accepting it --
-	// comparing IDs, not just the count, catches the case where a different single group
-	// happens to appear on each poll (e.g. a duplicate landing while another drops out of
-	// the projection), which a count-only comparison would wrongly treat as a confirmed
-	// unique match. This narrows, but can't fully close, the race where a second duplicate
-	// lands in the gap between two "stable" polls; there's no uniqueness-guaranteed lookup
-	// available from this API to close it completely. hardErr captures any
-	// transport/HTTP/decode failure from the closure so it can be distinguished below
-	// from a genuine "polled to timeout with zero matches" case; both are reported as an
-	// error by waitForConsistency, but only the latter is actually a "not found" signal.
-	// The request body is re-marshaled and a fresh reader constructed on every attempt,
-	// since an io.Reader can't be replayed after being consumed by a previous attempt.
-	lastCount := -1
-	var lastGroupIDs []string
-	var hardErr error
-	items, err := waitForConsistency(ctx, fmt.Sprintf("group named %q", name), func() ([]camunda.GroupResult, bool, error) {
-		hardErr = nil
+	// doesn't prove uniqueness. searchByNameUntilStable requires both the count and the
+	// exact set of group IDs to be stable (unchanged and nonzero) across two consecutive
+	// polls before accepting it. This narrows, but can't fully close, the race where a
+	// second duplicate lands in the gap between two "stable" polls; there's no
+	// uniqueness-guaranteed lookup available from this API to close it completely. The
+	// request body is re-marshaled and a fresh reader constructed on every attempt, since
+	// an io.Reader can't be replayed after being consumed by a previous attempt.
+	items, matchCount, hardErr, err := searchByNameUntilStable(ctx, fmt.Sprintf("group named %q", name),
+		func() ([]camunda.GroupResult, error) {
+			filterReq := groupSearchByNameRequest{}
+			filterReq.Filter.Name = name
 
-		filterReq := groupSearchByNameRequest{}
-		filterReq.Filter.Name = name
+			bodyBytes, err := json.Marshal(filterReq)
+			if err != nil {
+				return nil, fmt.Errorf("unable to encode group search request: %w", err)
+			}
 
-		bodyBytes, err := json.Marshal(filterReq)
-		if err != nil {
-			hardErr = fmt.Errorf("unable to encode group search request: %w", err)
-			return nil, false, hardErr
-		}
+			apiResp, err := d.client.SearchGroupsWithBodyWithResponse(ctx, "application/json", bytes.NewReader(bodyBytes))
+			if err != nil {
+				return nil, err
+			}
 
-		apiResp, err := d.client.SearchGroupsWithBodyWithResponse(ctx, "application/json", bytes.NewReader(bodyBytes))
-		if err != nil {
-			hardErr = err
-			return nil, false, hardErr
-		}
+			if apiResp.StatusCode() != http.StatusOK {
+				return nil, fmt.Errorf("got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body)
+			}
 
-		if apiResp.StatusCode() != http.StatusOK {
-			hardErr = fmt.Errorf("got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body)
-			return nil, false, hardErr
-		}
+			var result groupSearchQueryResult
+			if err := json.Unmarshal(apiResp.Body, &result); err != nil {
+				return nil, fmt.Errorf("unable to parse group search response: %w", err)
+			}
 
-		var result groupSearchQueryResult
-		if err := json.Unmarshal(apiResp.Body, &result); err != nil {
-			hardErr = fmt.Errorf("unable to parse group search response: %w", err)
-			return nil, false, hardErr
-		}
-
-		count := len(result.Items)
-		groupIDs := make([]string, count)
-		for i, item := range result.Items {
-			groupIDs[i] = item.GroupId
-		}
-		sort.Strings(groupIDs)
-
-		stable := count > 0 && count == lastCount && slices.Equal(groupIDs, lastGroupIDs)
-		lastCount = count
-		lastGroupIDs = groupIDs
-		return result.Items, stable, nil
-	})
+			return result.Items, nil
+		},
+		func(item camunda.GroupResult) string { return item.GroupId })
 	if hardErr != nil {
 		resp.Diagnostics.AddError("Search Error", fmt.Sprintf("Unable to search for group named '%s': %s", name, hardErr))
 		return
 	}
-	// With no hard error, an error here means waitForConsistency timed out. lastCount == 0
-	// means the last attempt cleanly reported zero matches -- a real "not found". A
-	// positive lastCount means matches kept appearing but never stabilized across two
-	// consecutive polls, which is not the same as "not found" and must not be reported as
-	// one; -1 means the search was cancelled before a first poll completed.
+	// With no hard error, an error here means the search timed out. matchCount == 0 means
+	// the last attempt cleanly reported zero matches -- a real "not found". A positive
+	// matchCount means matches kept appearing but never stabilized across two consecutive
+	// polls, which is not the same as "not found" and must not be reported as one;
+	// matchCount == -1 means the search was cancelled before a first poll completed.
 	if err != nil {
-		if lastCount == 0 {
+		if matchCount == 0 {
 			resp.Diagnostics.AddError("Not Found", fmt.Sprintf("No group found with name '%s': %s", name, err))
 		} else {
 			resp.Diagnostics.AddError("Search Error", fmt.Sprintf("Search for group named '%s' did not stabilize: %s", name, err))
@@ -189,10 +163,24 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	match := items[0]
-	data.Id = types.StringValue(match.GroupId)
-	data.Name = types.StringValue(match.Name)
-	data.Description = optionalStringValue(match.Description)
+	// The by-ID GET is a separate eventually consistent projection from the name search, so
+	// during a rename it can already report the new name for an ID the search still returns
+	// for the old one. Poll until the fetched group actually carries the requested name.
+	readResp, err := readUntilConsistent(ctx, fmt.Sprintf("group named %q", name),
+		func() (*camunda.GetGroupResponse, error) {
+			return readGroupWithRetry(ctx, d.client, items[0].GroupId)
+		},
+		func(readResp *camunda.GetGroupResponse) (bool, error) {
+			return readResp.JSON200 != nil && readResp.JSON200.Name == name, nil
+		})
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read group '%s', got error: %s", items[0].GroupId, err))
+		return
+	}
+
+	data.Id = types.StringValue(readResp.JSON200.GroupId)
+	data.Name = types.StringValue(readResp.JSON200.Name)
+	data.Description = optionalStringValue(readResp.JSON200.Description)
 
 	tflog.Trace(ctx, "read group data source")
 
