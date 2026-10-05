@@ -88,7 +88,7 @@ func (d *MappingRuleDataSource) Read(ctx context.Context, req datasource.ReadReq
 
 	apiResp, err := readMappingRuleWithRetry(ctx, d.client, id)
 	if err != nil {
-		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("Unable to read mapping rule '%s', got error: %s", id, err))
+		resp.Diagnostics.AddError("Error Reading Mapping Rule", fmt.Sprintf("Unable to read mapping rule '%s', got error: %s", id, err))
 		return
 	}
 
