@@ -12,5 +12,5 @@ resource "camundacluster_mapping_rule" "admin" {
 
 resource "camundacluster_tenant_member_mapping_rule" "admin" {
   tenant_id       = camundacluster_tenant.acme.id
-  mapping_rule_id = camundacluster_mapping_rule.admin.id
+  mapping_rule_id = camundacluster_mapping_rule.admin.mapping_rule_id
 }
