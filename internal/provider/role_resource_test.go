@@ -127,3 +127,17 @@ func checkRoleExistsInEngine(roleName string) resource.TestCheckFunc {
 		return fmt.Errorf("role resource not found in Terraform state")
 	}
 }
+
+func TestAccRoleResource_DriftAndReplace(t *testing.T) {
+	runIdentityLifecycleTest(t, identityLifecycleCase{
+		address: "camundacluster_role.test",
+		config:  func(id string) string { return testAccRoleResourceConfig(id, "Lifecycle Role", "") },
+		deleteInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
+			resp, err := client.DeleteRoleWithResponse(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			return resp.StatusCode(), nil
+		},
+	})
+}
