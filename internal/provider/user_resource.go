@@ -49,7 +49,7 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 		Attributes: map[string]schema.Attribute{
 			"email": schema.StringAttribute{
 				MarkdownDescription: "The email of the user.",
-				Required:            true,
+				Optional:            true,
 			},
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The unique ID of a user (the username).",
@@ -57,7 +57,7 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 			},
 			"name": schema.StringAttribute{
 				MarkdownDescription: "The name of the user.",
-				Required:            true,
+				Optional:            true,
 			},
 			"password": schema.StringAttribute{
 				MarkdownDescription: "The password of the user.",
@@ -123,23 +123,29 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	_, err = readUserWithRetry(ctx, r.client, data.Username.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user after creation, got error: %s", err))
+	if apiResp.JSON201 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 201 but with no parseable JSON body")
 		return
 	}
 
 	data.Id = types.StringValue(apiResp.JSON201.Username)
-	data.Name = types.StringValue(*apiResp.JSON201.Name)
-	data.Email = types.StringValue(*apiResp.JSON201.Email)
+	data.Name = optionalStringValue(apiResp.JSON201.Name)
+	data.Email = optionalStringValue(apiResp.JSON201.Email)
 	data.Username = types.StringValue(apiResp.JSON201.Username)
 
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "created user resource")
-
-	// Save data into Terraform state
+	// Persist state from the create response before polling for read consistency, so a
+	// polling timeout or transport error doesn't orphan the user the API already created.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if _, err := readUserWithRetry(ctx, r.client, apiResp.JSON201.Username); err != nil {
+		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("User %q was created but could not be confirmed readable yet: %s. State was saved from the create response; a later refresh will pick up any drift.", apiResp.JSON201.Username, err))
+		return
+	}
+
+	tflog.Trace(ctx, "created user resource")
 }
 
 func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -152,15 +158,30 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	apiResp, err := readUserWithRetry(ctx, r.client, data.Username.ValueString())
+	apiResp, err := r.client.GetUserWithResponse(ctx, data.Username.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user '%s', got error: %s", data.Username.ValueString(), err))
 		return
 	}
 
+	if apiResp.StatusCode() == http.StatusNotFound {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	if apiResp.StatusCode() != http.StatusOK {
+		resp.Diagnostics.AddError("Read Error", fmt.Sprintf("Error while reading user '%s', got HTTP error: %d: %s", data.Username.ValueString(), apiResp.StatusCode(), apiResp.Body))
+		return
+	}
+
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
+		return
+	}
+
 	data.Id = types.StringValue(apiResp.JSON200.Username)
-	data.Name = types.StringValue(*apiResp.JSON200.Name)
-	data.Email = types.StringValue(*apiResp.JSON200.Email)
+	data.Name = optionalStringValue(apiResp.JSON200.Name)
+	data.Email = optionalStringValue(apiResp.JSON200.Email)
 	data.Username = types.StringValue(apiResp.JSON200.Username)
 
 	// Save updated data into Terraform state
@@ -178,8 +199,9 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	request := camunda.UpdateUserJSONRequestBody{
-		Email: data.Email.ValueStringPointer(),
-		Name:  data.Name.ValueStringPointer(),
+		Email:    data.Email.ValueStringPointer(),
+		Name:     data.Name.ValueStringPointer(),
+		Password: data.Password.ValueStringPointer(),
 	}
 	apiResp, err := r.client.UpdateUserWithResponse(ctx, data.Username.ValueString(), request)
 
@@ -189,13 +211,18 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	if apiResp.StatusCode() != http.StatusOK {
-		resp.Diagnostics.AddError("Not Updated", fmt.Sprintf("Error while updating user, got HTTP error: %d", apiResp.StatusCode()))
+		resp.Diagnostics.AddError("Not Updated", fmt.Sprintf("Error while updating user, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
+		return
+	}
+
+	if apiResp.JSON200 == nil {
+		resp.Diagnostics.AddError("Invalid Response", "Server returned 200 but with no parseable JSON body")
 		return
 	}
 
 	data.Id = types.StringValue(apiResp.JSON200.Username)
-	data.Name = types.StringValue(*apiResp.JSON200.Name)
-	data.Email = types.StringValue(*apiResp.JSON200.Email)
+	data.Name = optionalStringValue(apiResp.JSON200.Name)
+	data.Email = optionalStringValue(apiResp.JSON200.Email)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -217,8 +244,8 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	if apiResp.StatusCode() != http.StatusNoContent {
-		resp.Diagnostics.AddError("Not Deleted", fmt.Sprintf("Error while deleting user, got HTTP error: %d", apiResp.StatusCode()))
+	if apiResp.StatusCode() != http.StatusNoContent && apiResp.StatusCode() != http.StatusNotFound {
+		resp.Diagnostics.AddError("Not Deleted", fmt.Sprintf("Error while deleting user, got HTTP error: %d: %s", apiResp.StatusCode(), apiResp.Body))
 		return
 	}
 }
@@ -230,12 +257,18 @@ func (r *UserResource) ImportState(ctx context.Context, req resource.ImportState
 // readUserWithRetry handles the eventual consistency of fetching a user by retrying a few times:
 // if a user was just created, it may not be immediately available through the API.
 func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses, username string) (*camunda.GetUserResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("user %q", username), func() (*camunda.GetUserResponse, bool, error) {
-		readResp, err := client.GetUserWithResponse(ctx, username)
-		if err != nil {
-			return nil, false, err
-		}
-
-		return readResp, readResp.StatusCode() == http.StatusOK, nil
-	})
+	return readWithRetry(ctx, fmt.Sprintf("user %q", username),
+		func() (*camunda.GetUserResponse, error) {
+			return client.GetUserWithResponse(ctx, username)
+		},
+		func(readResp *camunda.GetUserResponse) (bool, error) {
+			switch readResp.StatusCode() {
+			case http.StatusOK:
+				return true, nil
+			case http.StatusNotFound:
+				return false, nil
+			default:
+				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+			}
+		})
 }
