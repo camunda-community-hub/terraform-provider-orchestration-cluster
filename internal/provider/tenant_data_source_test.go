@@ -38,16 +38,6 @@ func TestAccTenantDataSource(t *testing.T) {
 					testAccTenantDataSourceConfig(`name = camundacluster_tenant.test.name`),
 				ConfigStateChecks: testAccTenantDataSourceChecks(dataSource),
 			},
-			// Not found by tenant ID.
-			{
-				Config:      providerConfig + testAccTenantDataSourceConfig(`tenant_id = "does-not-exist-tenant"`),
-				ExpectError: regexp.MustCompile(`Unable to read tenant`),
-			},
-			// Not found by name.
-			{
-				Config:      providerConfig + testAccTenantDataSourceConfig(`name = "does-not-exist-tenant-name"`),
-				ExpectError: regexp.MustCompile(`No tenant found with name`),
-			},
 			// Neither tenant_id nor name set.
 			{
 				Config:      providerConfig + testAccTenantDataSourceConfig(``),
@@ -57,6 +47,16 @@ func TestAccTenantDataSource(t *testing.T) {
 			{
 				Config:      providerConfig + testAccTenantDataSourceConfig("tenant_id = \"tenant-ds-lookup\"\n  name = \"DS Lookup Tenant\""),
 				ExpectError: regexp.MustCompile(`Exactly one of .tenant_id. or .name. must be set`),
+			},
+			// Not found by tenant ID.
+			{
+				Config:      providerConfig + testAccTenantDataSourceConfig(`tenant_id = "does-not-exist-tenant"`),
+				ExpectError: regexp.MustCompile(`Unable to read tenant`),
+			},
+			// Not found by name.
+			{
+				Config:      providerConfig + testAccTenantDataSourceConfig(`name = "does-not-exist-tenant-name"`),
+				ExpectError: regexp.MustCompile(`No tenant found with name`),
 			},
 		},
 	})
