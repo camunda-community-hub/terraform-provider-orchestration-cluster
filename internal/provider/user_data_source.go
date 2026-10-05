@@ -93,13 +93,13 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 
 	apiResp, err := readUserWithRetry(ctx, d.client, data.Username.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user '%s', got error: %s", data.Id.ValueString(), err))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user '%s', got error: %s", data.Username.ValueString(), err))
 		return
 	}
 
 	data.Id = types.StringValue(apiResp.JSON200.Username)
-	data.Name = types.StringValue(*apiResp.JSON200.Name)
-	data.Email = types.StringValue(*apiResp.JSON200.Email)
+	data.Name = optionalStringValue(apiResp.JSON200.Name)
+	data.Email = optionalStringValue(apiResp.JSON200.Email)
 	data.Username = types.StringValue(apiResp.JSON200.Username)
 
 	tflog.Trace(ctx, "read user data source")
