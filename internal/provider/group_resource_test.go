@@ -127,3 +127,17 @@ func checkGroupExistsInEngine(groupName string) resource.TestCheckFunc {
 		return fmt.Errorf("group resource not found in Terraform state")
 	}
 }
+
+func TestAccGroupResource_DriftAndReplace(t *testing.T) {
+	runIdentityLifecycleTest(t, identityLifecycleCase{
+		address: "camundacluster_group.test",
+		config:  func(id string) string { return testAccGroupResourceConfig(id, "Lifecycle Group", "") },
+		deleteInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
+			resp, err := client.DeleteGroupWithResponse(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			return resp.StatusCode(), nil
+		},
+	})
+}
