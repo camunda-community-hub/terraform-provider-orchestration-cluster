@@ -45,8 +45,9 @@ type membershipDef struct {
 	assign   func(ctx context.Context, c *camunda.ClientWithResponses, ownerId, memberId string) (membershipResponse, error)
 	unassign func(ctx context.Context, c *camunda.ClientWithResponses, ownerId, memberId string) (membershipResponse, error)
 	search   func(ctx context.Context, c *camunda.ClientWithResponses, ownerId string, body camunda.SearchQueryRequest) (membershipResponse, error)
-	// decodePage extracts the member IDs and the end cursor from a search response body.
-	decodePage func(body []byte) (ids []string, endCursor string, err error)
+	// decodePage extracts the member IDs, the end cursor and the exact total number of matching
+	// members (-1 if unknown or capped) from a search response body.
+	decodePage func(body []byte) (ids []string, endCursor string, exactTotal int64, err error)
 }
 
 func (d membershipDef) ownerAttr() string  { return d.ownerLabel + "_id" }
@@ -57,16 +58,18 @@ func (d membershipDef) memberName() string { return strings.ReplaceAll(d.memberL
 
 // decodeMembershipPage builds a membershipDef.decodePage for a search result whose items are
 // of type T, with idOf extracting the member ID from an item.
-func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, string, error) {
-	return func(body []byte) ([]string, string, error) {
+func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, string, int64, error) {
+	return func(body []byte) ([]string, string, int64, error) {
 		var page struct {
 			Items []T `json:"items"`
 			Page  struct {
-				EndCursor *string `json:"endCursor"`
+				EndCursor         *string `json:"endCursor"`
+				TotalItems        *int64  `json:"totalItems"`
+				HasMoreTotalItems bool    `json:"hasMoreTotalItems"`
 			} `json:"page"`
 		}
 		if err := json.Unmarshal(body, &page); err != nil {
-			return nil, "", fmt.Errorf("decode: %w", err)
+			return nil, "", -1, fmt.Errorf("decode: %w", err)
 		}
 		ids := make([]string, len(page.Items))
 		for i, item := range page.Items {
@@ -76,7 +79,11 @@ func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, st
 		if page.Page.EndCursor != nil {
 			cursor = *page.Page.EndCursor
 		}
-		return ids, cursor, nil
+		total := int64(-1)
+		if page.Page.TotalItems != nil && !page.Page.HasMoreTotalItems {
+			total = *page.Page.TotalItems
+		}
+		return ids, cursor, total, nil
 	}
 }
 
@@ -84,10 +91,12 @@ func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, st
 // It returns an error with message "not_found" if the owner itself is not found.
 //
 // Pagination stops as soon as the member is found, a page has no items, the end cursor is
-// empty, or the end cursor did not advance. hasMoreTotalItems is deliberately not used: it only
-// says that totalItems is a lower bound, not that another page exists.
+// empty, the end cursor did not advance, or the exact totalItems has been consumed.
+// hasMoreTotalItems is not a next-page flag: it only says that totalItems is a capped lower
+// bound, so totalItems is trusted only when it is false.
 func (d membershipDef) contains(ctx context.Context, client *camunda.ClientWithResponses, ownerId, memberId string) (bool, error) {
 	var cursor string
+	var seen int64
 	for {
 		body := camunda.SearchQueryRequest{}
 		// CursorForwardPagination.After has no `omitempty` json tag, so leaving it at its
@@ -115,7 +124,7 @@ func (d membershipDef) contains(ctx context.Context, client *camunda.ClientWithR
 			return false, fmt.Errorf("HTTP %d", searchResp.Status)
 		}
 
-		ids, endCursor, err := d.decodePage(searchResp.Body)
+		ids, endCursor, total, err := d.decodePage(searchResp.Body)
 		if err != nil {
 			return false, err
 		}
@@ -125,7 +134,8 @@ func (d membershipDef) contains(ctx context.Context, client *camunda.ClientWithR
 			}
 		}
 
-		if len(ids) == 0 || endCursor == "" || endCursor == cursor {
+		seen += int64(len(ids))
+		if len(ids) == 0 || endCursor == "" || endCursor == cursor || (total >= 0 && seen >= total) {
 			return false, nil
 		}
 		cursor = endCursor

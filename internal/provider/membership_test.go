@@ -90,6 +90,24 @@ func TestMembershipContains_pagination(t *testing.T) {
 			wantRequests: 2,
 		},
 		{
+			name: "stops when the exact total is consumed",
+			pages: []string{
+				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1","totalItems":2}}`,
+				`{"items":[{"clientId":"b"}],"page":{"endCursor":"c2","totalItems":2}}`,
+			},
+			want:         false,
+			wantRequests: 2,
+		},
+		{
+			name: "ignores a capped total",
+			pages: []string{
+				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1","totalItems":1,"hasMoreTotalItems":true}}`,
+				`{"items":[{"clientId":"target"}],"page":{"endCursor":"c2","totalItems":1,"hasMoreTotalItems":true}}`,
+			},
+			want:         true,
+			wantRequests: 2,
+		},
+		{
 			name: "stops when the cursor does not advance",
 			pages: []string{
 				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1"}}`,
