@@ -137,6 +137,18 @@ func TestAccUserResource_optionalNameAndEmailInPlaceUpdate(t *testing.T) {
 					statecheck.ExpectKnownValue(addr, tfjsonpath.New("email"), knownvalue.StringExact("plop@example.com")),
 				},
 			},
+			{
+				Config: providerConfig + testAccUserResourceMinimalConfig("user-optional"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(addr, plancheck.ResourceActionUpdate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(addr, tfjsonpath.New("name"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(addr, tfjsonpath.New("email"), knownvalue.Null()),
+				},
+			},
 		},
 	})
 }
