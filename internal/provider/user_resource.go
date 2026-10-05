@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -48,16 +49,22 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 
 		Attributes: map[string]schema.Attribute{
 			"email": schema.StringAttribute{
-				MarkdownDescription: "The email of the user.",
+				MarkdownDescription: "The email of the user. Omit this attribute (or set it to `null`) to indicate no value; an explicitly configured empty string is rejected because the API cannot distinguish it from an absent value.",
 				Optional:            true,
+				Validators: []validator.String{
+					nonEmptyStringValidator{},
+				},
 			},
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The unique ID of a user (the username).",
 				Computed:            true,
 			},
 			"name": schema.StringAttribute{
-				MarkdownDescription: "The name of the user.",
+				MarkdownDescription: "The name of the user. Omit this attribute (or set it to `null`) to indicate no value; an explicitly configured empty string is rejected because the API cannot distinguish it from an absent value.",
 				Optional:            true,
+				Validators: []validator.String{
+					nonEmptyStringValidator{},
+				},
 			},
 			"password": schema.StringAttribute{
 				MarkdownDescription: "The password of the user.",

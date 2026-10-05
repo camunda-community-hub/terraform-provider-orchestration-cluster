@@ -43,8 +43,8 @@ func (v nonEmptyStringValidator) ValidateString(ctx context.Context, req validat
 	if req.ConfigValue.ValueString() == "" {
 		resp.Diagnostics.AddAttributeError(
 			req.Path,
-			"Invalid Description",
-			fmt.Sprintf("%s must not be an empty string; omit the attribute (or set it to null) to indicate no description.", req.Path),
+			"Invalid Empty String",
+			fmt.Sprintf("%s must not be an empty string; omit the attribute (or set it to null) instead.", req.Path),
 		)
 	}
 }
