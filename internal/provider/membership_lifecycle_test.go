@@ -132,7 +132,7 @@ func TestAccMembershipResources_replacement(t *testing.T) {
 					plancheck.ExpectResourceAction(address, plancheck.ResourceActionReplace),
 				},
 			}
-			tfresource.Test(t, tfresource.TestCase{
+			tfresource.ParallelTest(t, tfresource.TestCase{
 				PreCheck:                 func() { testAccPreCheck(t) },
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				Steps: []tfresource.TestStep{
@@ -157,7 +157,7 @@ func TestAccMembershipResources_nonexistentOwner(t *testing.T) {
 	for _, def := range membershipLifecycleDefs {
 		t.Run(def.typeSuffix, func(t *testing.T) {
 			_, _, memberA, _ := membershipTestIds(def)
-			tfresource.Test(t, tfresource.TestCase{
+			tfresource.ParallelTest(t, tfresource.TestCase{
 				PreCheck:                 func() { testAccPreCheck(t) },
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				Steps: []tfresource.TestStep{
@@ -180,7 +180,7 @@ func TestAccMembershipResources_adoptExisting(t *testing.T) {
 			ownerA, _, memberA, _ := membershipTestIds(def)
 			owners := []string{ownerA}
 			members := []string{memberA}
-			tfresource.Test(t, tfresource.TestCase{
+			tfresource.ParallelTest(t, tfresource.TestCase{
 				PreCheck:                 func() { testAccPreCheck(t) },
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				Steps: []tfresource.TestStep{
