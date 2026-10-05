@@ -63,10 +63,8 @@ func (r *RoleResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Required:            true,
 			},
 			"description": schema.StringAttribute{
-				MarkdownDescription: "The description of the role. Omit this attribute (or set it to `null`) to indicate no " +
-					"description — the API cannot distinguish an empty string from an absent description, so an explicitly " +
-					"configured empty string is rejected rather than silently normalized to null.",
-				Optional: true,
+				MarkdownDescription: descriptionAttributeMarkdown("role"),
+				Optional:            true,
 				Validators: []validator.String{
 					nonEmptyStringValidator{},
 				},
@@ -258,21 +256,20 @@ func (r *RoleResource) ImportState(ctx context.Context, req resource.ImportState
 // readRoleWithRetry handles the eventual consistency of fetching a role by retrying a few
 // times: if a role was just created, it may not be immediately available through the API.
 func readRoleWithRetry(ctx context.Context, client *camunda.ClientWithResponses, roleId string) (*camunda.GetRoleResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("role %q", roleId), func() (*camunda.GetRoleResponse, bool, error) {
-		readResp, err := client.GetRoleWithResponse(ctx, roleId)
-		if err != nil {
-			return nil, false, err
-		}
-
-		switch readResp.StatusCode() {
-		case http.StatusOK:
-			return readResp, true, nil
-		case http.StatusNotFound:
-			return readResp, false, nil
-		default:
-			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
-		}
-	})
+	return readWithRetry(ctx, fmt.Sprintf("role %q", roleId),
+		func() (*camunda.GetRoleResponse, error) {
+			return client.GetRoleWithResponse(ctx, roleId)
+		},
+		func(readResp *camunda.GetRoleResponse) (bool, error) {
+			switch readResp.StatusCode() {
+			case http.StatusOK:
+				return true, nil
+			case http.StatusNotFound:
+				return false, nil
+			default:
+				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+			}
+		})
 }
 
 // readRoleUntilConsistent polls GET until it reflects the given name and description,
@@ -280,32 +277,31 @@ func readRoleWithRetry(ctx context.Context, client *camunda.ClientWithResponses,
 // the read-side projection can briefly return the pre-update values right after a successful
 // PUT, which would otherwise make Terraform's post-apply refresh plan non-empty.
 func readRoleUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, roleId, expectedName string, expectedDescription *string) (*camunda.GetRoleResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("role %q", roleId), func() (*camunda.GetRoleResponse, bool, error) {
-		readResp, err := client.GetRoleWithResponse(ctx, roleId)
-		if err != nil {
-			return nil, false, err
-		}
+	return readUntilConsistent(ctx, fmt.Sprintf("role %q", roleId),
+		func() (*camunda.GetRoleResponse, error) {
+			return client.GetRoleWithResponse(ctx, roleId)
+		},
+		func(readResp *camunda.GetRoleResponse) (bool, error) {
+			if readResp.StatusCode() == http.StatusNotFound {
+				return false, nil
+			}
 
-		if readResp.StatusCode() == http.StatusNotFound {
-			return readResp, false, nil
-		}
+			if readResp.StatusCode() != http.StatusOK {
+				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+			}
 
-		if readResp.StatusCode() != http.StatusOK {
-			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
-		}
+			if readResp.JSON200 == nil {
+				return false, nil
+			}
 
-		if readResp.JSON200 == nil {
-			return readResp, false, nil
-		}
+			if readResp.JSON200.Name != expectedName {
+				return false, nil
+			}
 
-		if readResp.JSON200.Name != expectedName {
-			return readResp, false, nil
-		}
+			if normalizedDescription(readResp.JSON200.Description) != normalizedDescription(expectedDescription) {
+				return false, nil
+			}
 
-		if normalizedDescription(readResp.JSON200.Description) != normalizedDescription(expectedDescription) {
-			return readResp, false, nil
-		}
-
-		return readResp, true, nil
-	})
+			return true, nil
+		})
 }

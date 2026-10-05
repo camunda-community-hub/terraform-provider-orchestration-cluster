@@ -49,10 +49,8 @@ func (r *TenantResource) Schema(ctx context.Context, req resource.SchemaRequest,
 
 		Attributes: map[string]schema.Attribute{
 			"description": schema.StringAttribute{
-				MarkdownDescription: "The description of the tenant. Omit this attribute (or set it to `null`) to indicate no " +
-					"description — the API cannot distinguish an empty string from an absent description, so an explicitly " +
-					"configured empty string is rejected rather than silently normalized to null.",
-				Optional: true,
+				MarkdownDescription: descriptionAttributeMarkdown("tenant"),
+				Optional:            true,
 				Validators: []validator.String{
 					nonEmptyStringValidator{},
 				},
@@ -116,36 +114,6 @@ func (v tenantIdValidator) ValidateString(ctx context.Context, req validator.Str
 			req.Path,
 			"Invalid Tenant ID",
 			fmt.Sprintf("tenant_id %q must be 31 characters or less and contain only letters, numbers, '_', '-' and '.'.", req.ConfigValue.ValueString()),
-		)
-	}
-}
-
-// nonEmptyStringValidator rejects an explicitly configured empty string, while still
-// allowing null (attribute omitted) and unknown values through. It exists because the
-// tenant API conflates an empty description with an absent one (see optionalStringValue):
-// without this validator, a configured `description = ""` would be silently normalized
-// to null after Create/Update, producing a persistent diff between the configured value
-// and the stored state.
-type nonEmptyStringValidator struct{}
-
-func (v nonEmptyStringValidator) Description(ctx context.Context) string {
-	return "must not be an empty string; omit the attribute (or set it to null) instead"
-}
-
-func (v nonEmptyStringValidator) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (v nonEmptyStringValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-
-	if req.ConfigValue.ValueString() == "" {
-		resp.Diagnostics.AddAttributeError(
-			req.Path,
-			"Invalid Description",
-			fmt.Sprintf("%s must not be an empty string; omit the attribute (or set it to null) to indicate no description.", req.Path),
 		)
 	}
 }
@@ -318,37 +286,23 @@ func (r *TenantResource) ImportState(ctx context.Context, req resource.ImportSta
 	resource.ImportStatePassthroughID(ctx, path.Root("tenant_id"), req, resp)
 }
 
-// optionalStringValue converts an optional *string, as returned by the API for the
-// tenant description, into a types.String. The API reports a cleared or never-set
-// description as an empty string rather than omitting the field or returning null,
-// so both a nil pointer and an empty string must map to a null value: otherwise a
-// config with no `description` would show a perpetual diff against an API-reported
-// empty string.
-func optionalStringValue(s *string) types.String {
-	if s == nil || *s == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(*s)
-}
-
 // readTenantWithRetry handles the eventual consistency of fetching a tenant by retrying a few times:
 // if a tenant was just created, it may not be immediately available through the API.
 func readTenantWithRetry(ctx context.Context, client *camunda.ClientWithResponses, tenantId string) (*camunda.GetTenantResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("tenant %q", tenantId), func() (*camunda.GetTenantResponse, bool, error) {
-		readResp, err := client.GetTenantWithResponse(ctx, tenantId)
-		if err != nil {
-			return nil, false, err
-		}
-
-		switch readResp.StatusCode() {
-		case http.StatusOK:
-			return readResp, true, nil
-		case http.StatusNotFound:
-			return readResp, false, nil
-		default:
-			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
-		}
-	})
+	return readWithRetry(ctx, fmt.Sprintf("tenant %q", tenantId),
+		func() (*camunda.GetTenantResponse, error) {
+			return client.GetTenantWithResponse(ctx, tenantId)
+		},
+		func(readResp *camunda.GetTenantResponse) (bool, error) {
+			switch readResp.StatusCode() {
+			case http.StatusOK:
+				return true, nil
+			case http.StatusNotFound:
+				return false, nil
+			default:
+				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+			}
+		})
 }
 
 // readTenantUntilConsistent polls GET until it reflects the given name and description,
@@ -356,42 +310,31 @@ func readTenantWithRetry(ctx context.Context, client *camunda.ClientWithResponse
 // the read-side projection can briefly return the pre-update values right after a successful
 // PUT, which would otherwise make Terraform's post-apply refresh plan non-empty.
 func readTenantUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, tenantId, expectedName string, expectedDescription *string) (*camunda.GetTenantResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("tenant %q", tenantId), func() (*camunda.GetTenantResponse, bool, error) {
-		readResp, err := client.GetTenantWithResponse(ctx, tenantId)
-		if err != nil {
-			return nil, false, err
-		}
+	return readUntilConsistent(ctx, fmt.Sprintf("tenant %q", tenantId),
+		func() (*camunda.GetTenantResponse, error) {
+			return client.GetTenantWithResponse(ctx, tenantId)
+		},
+		func(readResp *camunda.GetTenantResponse) (bool, error) {
+			if readResp.StatusCode() == http.StatusNotFound {
+				return false, nil
+			}
 
-		if readResp.StatusCode() == http.StatusNotFound {
-			return readResp, false, nil
-		}
+			if readResp.StatusCode() != http.StatusOK {
+				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+			}
 
-		if readResp.StatusCode() != http.StatusOK {
-			return nil, false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
-		}
+			if readResp.JSON200 == nil {
+				return false, nil
+			}
 
-		if readResp.JSON200 == nil {
-			return readResp, false, nil
-		}
+			if readResp.JSON200.Name != expectedName {
+				return false, nil
+			}
 
-		if readResp.JSON200.Name != expectedName {
-			return readResp, false, nil
-		}
+			if normalizedDescription(readResp.JSON200.Description) != normalizedDescription(expectedDescription) {
+				return false, nil
+			}
 
-		if normalizedDescription(readResp.JSON200.Description) != normalizedDescription(expectedDescription) {
-			return readResp, false, nil
-		}
-
-		return readResp, true, nil
-	})
-}
-
-// normalizedDescription treats a nil description pointer the same as an empty
-// string, matching the API's behavior of reporting a cleared or never-set
-// description as "" rather than omitting it or returning null.
-func normalizedDescription(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
+			return true, nil
+		})
 }
