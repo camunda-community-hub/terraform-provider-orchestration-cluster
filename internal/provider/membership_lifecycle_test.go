@@ -32,18 +32,6 @@ var membershipLifecycleDefs = []membershipDef{
 	tenantMemberClient,
 }
 
-// membershipErrorCaseDefs is the subset of membershipLifecycleDefs run through the slower
-// error-case acceptance tests: one resource per owner kind plus both member kinds that have no
-// resource of their own (clients) or a resource with extra required fields (mapping rules). All
-// resources share the same create and delete code path, so covering every one would only add
-// runtime to the acceptance suite, which has a hard step time limit.
-var membershipErrorCaseDefs = []membershipDef{
-	groupMemberUser,
-	roleMemberGroup,
-	tenantMemberMappingRule,
-	tenantMemberClient,
-}
-
 // membershipTestIds returns the IDs used by the acceptance tests of def. They are unique per
 // resource type so tests never collide on the shared cluster.
 func membershipTestIds(def membershipDef) (ownerA, ownerB, memberA, memberB string) {
@@ -101,20 +89,22 @@ resource "camundacluster_mapping_rule" %q {
 	panic("unknown membership kind " + kind)
 }
 
-// membershipConfig renders a configuration that creates the given owner and member objects and,
-// if assignOwner and assignMember are not empty, an assignment named "test" between them.
-func membershipConfig(def membershipDef, owners, members []string, assignOwner, assignMember string) string {
+// membershipBlocks renders the resources that create the given owner and member objects of def
+// and, if assignOwner is not empty, an assignment named "test" between assignOwner and
+// assignMember. Labels are prefixed with the resource type so the blocks of several definitions
+// can share one configuration.
+func membershipBlocks(def membershipDef, owners, members []string, assignOwner, assignMember string) string {
 	var b strings.Builder
 	var deps []string
 	for i, id := range owners {
-		label := fmt.Sprintf("owner%d", i)
+		label := fmt.Sprintf("%s_owner%d", def.typeSuffix, i)
 		if hcl, ok := membershipKindHCL(def.ownerLabel, label, id); ok {
 			b.WriteString(hcl)
 			deps = append(deps, fmt.Sprintf("camundacluster_%s.%s", def.ownerLabel, label))
 		}
 	}
 	for i, id := range members {
-		label := fmt.Sprintf("member%d", i)
+		label := fmt.Sprintf("%s_member%d", def.typeSuffix, i)
 		if hcl, ok := membershipKindHCL(def.memberLabel, label, id); ok {
 			b.WriteString(hcl)
 			deps = append(deps, fmt.Sprintf("camundacluster_%s.%s", def.memberLabel, label))
@@ -127,46 +117,72 @@ func membershipConfig(def membershipDef, owners, members []string, assignOwner, 
 		}
 		b.WriteString("}\n")
 	}
-	return providerConfig + b.String()
+	return b.String()
+}
+
+// membershipConfig renders a configuration for a single definition, see membershipBlocks.
+func membershipConfig(def membershipDef, owners, members []string, assignOwner, assignMember string) string {
+	return providerConfig + membershipBlocks(def, owners, members, assignOwner, assignMember)
+}
+
+// membershipAllConfig renders one configuration covering every membershipLifecycleDefs entry.
+// pick returns the owner and member IDs to assign for a definition, or "" to only create the
+// objects. All resources are applied in one run, which keeps the acceptance suite fast.
+func membershipAllConfig(pick func(def membershipDef) (assignOwner, assignMember string)) string {
+	var b strings.Builder
+	b.WriteString(providerConfig)
+	for _, def := range membershipLifecycleDefs {
+		ownerA, ownerB, memberA, memberB := membershipTestIds(def)
+		assignOwner, assignMember := pick(def)
+		b.WriteString(membershipBlocks(def, []string{ownerA, ownerB}, []string{memberA, memberB}, assignOwner, assignMember))
+	}
+	return b.String()
+}
+
+// membershipExpectAction returns a plan check expecting action on the assignment of every
+// membershipLifecycleDefs entry.
+func membershipExpectAction(action plancheck.ResourceActionType) tfresource.ConfigPlanChecks {
+	var checks []plancheck.PlanCheck
+	for _, def := range membershipLifecycleDefs {
+		checks = append(checks, plancheck.ExpectResourceAction("camundacluster_"+def.typeSuffix+".test", action))
+	}
+	return tfresource.ConfigPlanChecks{PreApply: checks}
 }
 
 // TestAccMembershipResources_replacement verifies that changing either the owner ID or the
-// member ID of an assignment plans a replacement rather than an in-place update.
+// member ID of an assignment plans a replacement rather than an in-place update. All membership
+// resources are checked in one run.
 func TestAccMembershipResources_replacement(t *testing.T) {
-	for _, def := range membershipLifecycleDefs {
-		t.Run(def.typeSuffix, func(t *testing.T) {
-			ownerA, ownerB, memberA, memberB := membershipTestIds(def)
-			owners := []string{ownerA, ownerB}
-			members := []string{memberA, memberB}
-			address := "camundacluster_" + def.typeSuffix + ".test"
-			expectReplace := tfresource.ConfigPlanChecks{
-				PreApply: []plancheck.PlanCheck{
-					plancheck.ExpectResourceAction(address, plancheck.ResourceActionReplace),
-				},
-			}
-			tfresource.ParallelTest(t, tfresource.TestCase{
-				PreCheck:                 func() { testAccPreCheck(t) },
-				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-				Steps: []tfresource.TestStep{
-					{Config: membershipConfig(def, owners, members, ownerA, memberA)},
-					{
-						Config:           membershipConfig(def, owners, members, ownerB, memberA),
-						ConfigPlanChecks: expectReplace,
-					},
-					{
-						Config:           membershipConfig(def, owners, members, ownerB, memberB),
-						ConfigPlanChecks: expectReplace,
-					},
-				},
-			})
-		})
-	}
+	tfresource.Test(t, tfresource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []tfresource.TestStep{
+			{Config: membershipAllConfig(func(def membershipDef) (string, string) {
+				ownerA, _, memberA, _ := membershipTestIds(def)
+				return ownerA, memberA
+			})},
+			{
+				Config: membershipAllConfig(func(def membershipDef) (string, string) {
+					_, ownerB, memberA, _ := membershipTestIds(def)
+					return ownerB, memberA
+				}),
+				ConfigPlanChecks: membershipExpectAction(plancheck.ResourceActionReplace),
+			},
+			{
+				Config: membershipAllConfig(func(def membershipDef) (string, string) {
+					_, ownerB, _, memberB := membershipTestIds(def)
+					return ownerB, memberB
+				}),
+				ConfigPlanChecks: membershipExpectAction(plancheck.ResourceActionReplace),
+			},
+		},
+	})
 }
 
 // TestAccMembershipResources_nonexistentOwner verifies that assigning to an owner that does not
 // exist fails instead of recording an assignment in state.
 func TestAccMembershipResources_nonexistentOwner(t *testing.T) {
-	for _, def := range membershipErrorCaseDefs {
+	for _, def := range membershipLifecycleDefs {
 		t.Run(def.typeSuffix, func(t *testing.T) {
 			_, _, memberA, _ := membershipTestIds(def)
 			tfresource.ParallelTest(t, tfresource.TestCase{
@@ -184,33 +200,36 @@ func TestAccMembershipResources_nonexistentOwner(t *testing.T) {
 }
 
 // TestAccMembershipResources_adoptExisting verifies that creating an assignment that already
-// exists (the API answers 409) adopts it instead of failing, and that the adopted assignment is
-// then managed like any other.
+// exists (the API answers 409) adopts it instead of failing. All membership resources are checked
+// in one run.
 func TestAccMembershipResources_adoptExisting(t *testing.T) {
-	for _, def := range membershipErrorCaseDefs {
-		t.Run(def.typeSuffix, func(t *testing.T) {
-			ownerA, _, memberA, _ := membershipTestIds(def)
-			owners := []string{ownerA}
-			members := []string{memberA}
-			tfresource.ParallelTest(t, tfresource.TestCase{
-				PreCheck:                 func() { testAccPreCheck(t) },
-				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-				Steps: []tfresource.TestStep{
-					{Config: membershipConfig(def, owners, members, "", "")},
-					{
-						PreConfig: func() { assignMembershipOutOfBand(t, def, ownerA, memberA) },
-						Config:    membershipConfig(def, owners, members, ownerA, memberA),
-						ConfigPlanChecks: tfresource.ConfigPlanChecks{
-							PreApply: []plancheck.PlanCheck{
-								plancheck.ExpectResourceAction("camundacluster_"+def.typeSuffix+".test", plancheck.ResourceActionCreate),
-							},
-						},
-						Check: tfresource.TestCheckResourceAttr("camundacluster_"+def.typeSuffix+".test", "id", encodeMembershipId(ownerA, memberA)),
-					},
-				},
-			})
-		})
+	assignA := func(def membershipDef) (string, string) {
+		ownerA, _, memberA, _ := membershipTestIds(def)
+		return ownerA, memberA
 	}
+	checks := []tfresource.TestCheckFunc{}
+	for _, def := range membershipLifecycleDefs {
+		ownerA, memberA := assignA(def)
+		checks = append(checks, tfresource.TestCheckResourceAttr("camundacluster_"+def.typeSuffix+".test", "id", encodeMembershipId(ownerA, memberA)))
+	}
+	tfresource.Test(t, tfresource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []tfresource.TestStep{
+			{Config: membershipAllConfig(func(membershipDef) (string, string) { return "", "" })},
+			{
+				PreConfig: func() {
+					for _, def := range membershipLifecycleDefs {
+						ownerA, memberA := assignA(def)
+						assignMembershipOutOfBand(t, def, ownerA, memberA)
+					}
+				},
+				Config:           membershipAllConfig(assignA),
+				ConfigPlanChecks: membershipExpectAction(plancheck.ResourceActionCreate),
+				Check:            tfresource.ComposeAggregateTestCheckFunc(checks...),
+			},
+		},
+	})
 }
 
 // assignMembershipOutOfBand creates the assignment through the API, bypassing Terraform, and
