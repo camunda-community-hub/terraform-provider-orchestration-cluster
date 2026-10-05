@@ -31,8 +31,8 @@ resource "camundacluster_user" "alice" {
 
 ### Optional
 
-- `email` (String) The email of the user.
-- `name` (String) The name of the user.
+- `email` (String) The email of the user. Omit this attribute (or set it to `null`) to indicate no value; an explicitly configured empty string is rejected because the API cannot distinguish it from an absent value.
+- `name` (String) The name of the user. Omit this attribute (or set it to `null`) to indicate no value; an explicitly configured empty string is rejected because the API cannot distinguish it from an absent value.
 
 ### Read-Only
 
