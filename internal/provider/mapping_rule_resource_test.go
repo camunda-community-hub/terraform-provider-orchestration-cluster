@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+
+	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
 
 func TestAccMappingRuleResource(t *testing.T) {
@@ -87,4 +90,20 @@ resource "camundacluster_mapping_rule" "test" {
   name            = "%s"
 }
 `, mappingRuleId, claimName, claimValue, name)
+}
+
+func TestAccMappingRuleResource_DriftAndReplace(t *testing.T) {
+	runIdentityLifecycleTest(t, identityLifecycleCase{
+		address: "camundacluster_mapping_rule.test",
+		config: func(id string) string {
+			return testAccMappingRuleResourceConfig(id, "groups", "lifecycle", "Lifecycle Mapping")
+		},
+		deleteInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
+			resp, err := client.DeleteMappingRuleWithResponse(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			return resp.StatusCode(), nil
+		},
+	})
 }
