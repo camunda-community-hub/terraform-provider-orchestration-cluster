@@ -22,7 +22,9 @@ import (
 var membershipLifecycleDefs = []membershipDef{
 	groupMemberUser,
 	groupMemberClient,
+	groupMemberMappingRule,
 	roleMemberUser,
+	roleMemberMappingRule,
 	roleMemberClient,
 	roleMemberGroup,
 	tenantMemberUser,
