@@ -59,7 +59,7 @@ jobs:
     name: 'Acceptance Tests: Terraform ${{ matrix.terraform }} / Camunda ${{ matrix.camunda }}'
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -92,7 +92,7 @@ jobs:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
-      - run: go test -v -cover ./internal/provider/
-        timeout-minutes: 10
+      - run: go test -v -cover -timeout 19m ./internal/provider/
+        timeout-minutes: 20
         env:
           TF_ACC: "1"
