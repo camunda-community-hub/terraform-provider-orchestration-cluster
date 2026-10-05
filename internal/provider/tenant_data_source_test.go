@@ -58,6 +58,7 @@ func TestAccTenantDataSource(t *testing.T) {
 			},
 			// Not found by tenant ID.
 			{
+				PreConfig:   shortConsistencyTimeout(t),
 				Config:      providerConfig + testAccTenantDataSourceConfig(`tenant_id = "does-not-exist-tenant"`),
 				ExpectError: regexp.MustCompile(`Unable to read tenant`),
 			},
@@ -70,6 +71,7 @@ func TestAccTenantDataSource(t *testing.T) {
 			// waits on /tenants/search, the endpoint the data source queries, via
 			// waitForTenantSearchDuplicates.
 			{
+				PreConfig: restoreConsistencyTimeout,
 				Config: providerConfig + testAccTenantDuplicateNameResourcesConfig("Duplicate Tenant Name"),
 				Check:  waitForTenantSearchDuplicates("Duplicate Tenant Name"),
 			},
