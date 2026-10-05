@@ -89,7 +89,7 @@ func TestClusterTopologyDataSource_NullClusterId(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
 	}
-	if !model.ClusterId.IsNull() {
-		t.Errorf("cluster_id = %v, want null", model.ClusterId)
+	if !model.ClusterId.IsNull() || !model.Id.IsNull() {
+		t.Errorf("cluster_id/id = %v/%v, want null", model.ClusterId, model.Id)
 	}
 }
