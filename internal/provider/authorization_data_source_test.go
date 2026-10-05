@@ -40,6 +40,7 @@ func TestAccAuthorizationDataSource(t *testing.T) {
 			},
 			// Not found: no authorization exists with this key.
 			{
+				PreConfig:   shortConsistencyTimeout(t),
 				Config:      providerConfig + testAccAuthorizationDataSourceConfig(`"999999999999999"`),
 				ExpectError: regexp.MustCompile(`No authorization found with key`),
 			},

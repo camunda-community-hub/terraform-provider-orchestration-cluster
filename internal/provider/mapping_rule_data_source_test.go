@@ -34,6 +34,7 @@ func TestAccMappingRuleDataSource(t *testing.T) {
 			},
 			// Not found: no mapping rule exists with this ID.
 			{
+				PreConfig:   shortConsistencyTimeout(t),
 				Config:      providerConfig + testAccMappingRuleDataSourceConfig(`"does-not-exist-mapping-rule"`),
 				ExpectError: regexp.MustCompile(`Unable to read mapping rule`),
 			},

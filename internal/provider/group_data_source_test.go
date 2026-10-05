@@ -57,6 +57,7 @@ func TestAccGroupDataSource(t *testing.T) {
 			},
 			// Not found: no group exists with this name.
 			{
+				PreConfig:   shortConsistencyTimeout(t),
 				Config:      providerConfig + testAccGroupDataSourceConfig(`"does-not-exist-group-name"`),
 				ExpectError: regexp.MustCompile(`No group found with name`),
 			},
@@ -66,6 +67,7 @@ func TestAccGroupDataSource(t *testing.T) {
 			// that is a separate eventually-consistent projection and can be
 			// consistent while search still reflects only one of the two groups.
 			{
+				PreConfig: restoreConsistencyTimeout,
 				Config: providerConfig + testAccGroupDuplicateNameResourcesConfig("Duplicate Group Name"),
 				Check:  waitForGroupSearchDuplicates("Duplicate Group Name"),
 			},
