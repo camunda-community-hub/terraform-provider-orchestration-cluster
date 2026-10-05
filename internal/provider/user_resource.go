@@ -220,9 +220,15 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	data.Id = types.StringValue(apiResp.JSON200.Username)
-	data.Name = optionalStringValue(apiResp.JSON200.Name)
-	data.Email = optionalStringValue(apiResp.JSON200.Email)
+	readResp, err := readUserUntilConsistent(ctx, r.client, data.Username.ValueString(), data.Name.ValueStringPointer(), data.Email.ValueStringPointer())
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm user update, got error: %s", err))
+		return
+	}
+
+	data.Id = types.StringValue(readResp.JSON200.Username)
+	data.Name = optionalStringValue(readResp.JSON200.Name)
+	data.Email = optionalStringValue(readResp.JSON200.Email)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -270,5 +276,32 @@ func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses,
 			default:
 				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
 			}
+		})
+}
+
+// readUserUntilConsistent polls GET until it reflects the given name and email, handling the
+// same eventual consistency on updates as readUserWithRetry does on creates: the read-side
+// projection can briefly return the pre-update values right after a successful PUT, which
+// would otherwise make Terraform's post-apply refresh plan non-empty.
+func readUserUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, username string, expectedName, expectedEmail *string) (*camunda.GetUserResponse, error) {
+	return readUntilConsistent(ctx, fmt.Sprintf("user %q", username),
+		func() (*camunda.GetUserResponse, error) {
+			return client.GetUserWithResponse(ctx, username)
+		},
+		func(readResp *camunda.GetUserResponse) (bool, error) {
+			switch readResp.StatusCode() {
+			case http.StatusOK:
+			case http.StatusNotFound:
+				return false, nil
+			default:
+				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.StatusCode(), readResp.Body)
+			}
+
+			if readResp.JSON200 == nil {
+				return false, nil
+			}
+
+			return normalizedDescription(readResp.JSON200.Name) == normalizedDescription(expectedName) &&
+				normalizedDescription(readResp.JSON200.Email) == normalizedDescription(expectedEmail), nil
 		})
 }
