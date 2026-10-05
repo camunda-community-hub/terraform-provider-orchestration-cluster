@@ -120,7 +120,7 @@ func (d *ClusterTopologyDataSource) Read(ctx context.Context, req datasource.Rea
 
 	// Save the data into the state.
 	data.ClusterId = types.StringPointerValue(topologyResp.JSON200.ClusterId)
-	data.Id = types.StringValue(data.ClusterId.ValueString())
+	data.Id = data.ClusterId
 	data.ClusterSize = types.Int32Value(topologyResp.JSON200.ClusterSize)
 	data.GatewayVersion = types.StringValue(topologyResp.JSON200.GatewayVersion)
 	data.PartitionsCount = types.Int32Value(topologyResp.JSON200.PartitionsCount)
