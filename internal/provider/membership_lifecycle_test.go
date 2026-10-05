@@ -32,6 +32,18 @@ var membershipLifecycleDefs = []membershipDef{
 	tenantMemberClient,
 }
 
+// membershipErrorCaseDefs is the subset of membershipLifecycleDefs run through the slower
+// error-case acceptance tests: one resource per owner kind plus both member kinds that have no
+// resource of their own (clients) or a resource with extra required fields (mapping rules). All
+// resources share the same create and delete code path, so covering every one would only add
+// runtime to the acceptance suite, which has a hard step time limit.
+var membershipErrorCaseDefs = []membershipDef{
+	groupMemberUser,
+	roleMemberGroup,
+	tenantMemberMappingRule,
+	tenantMemberClient,
+}
+
 // membershipTestIds returns the IDs used by the acceptance tests of def. They are unique per
 // resource type so tests never collide on the shared cluster.
 func membershipTestIds(def membershipDef) (ownerA, ownerB, memberA, memberB string) {
@@ -154,7 +166,7 @@ func TestAccMembershipResources_replacement(t *testing.T) {
 // TestAccMembershipResources_nonexistentOwner verifies that assigning to an owner that does not
 // exist fails instead of recording an assignment in state.
 func TestAccMembershipResources_nonexistentOwner(t *testing.T) {
-	for _, def := range membershipLifecycleDefs {
+	for _, def := range membershipErrorCaseDefs {
 		t.Run(def.typeSuffix, func(t *testing.T) {
 			_, _, memberA, _ := membershipTestIds(def)
 			tfresource.ParallelTest(t, tfresource.TestCase{
@@ -175,7 +187,7 @@ func TestAccMembershipResources_nonexistentOwner(t *testing.T) {
 // exists (the API answers 409) adopts it instead of failing, and that the adopted assignment is
 // then managed like any other.
 func TestAccMembershipResources_adoptExisting(t *testing.T) {
-	for _, def := range membershipLifecycleDefs {
+	for _, def := range membershipErrorCaseDefs {
 		t.Run(def.typeSuffix, func(t *testing.T) {
 			ownerA, _, memberA, _ := membershipTestIds(def)
 			owners := []string{ownerA}
