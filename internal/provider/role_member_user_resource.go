@@ -34,7 +34,7 @@ var roleMemberUser = membershipDef{
 		}
 		return membershipResponse{r.StatusCode(), r.Body}, nil
 	},
-	decodePage: decodeMembershipPage(func(r camunda.RoleUserResult) string { return string(r.Username) }),
+	decodePage: decodeMembershipPage(func(r camunda.RoleUserResult) string { return r.Username }),
 }
 
 func NewRoleMemberUserResource() resource.Resource {

@@ -34,7 +34,7 @@ var tenantMemberUser = membershipDef{
 		}
 		return membershipResponse{r.StatusCode(), r.Body}, nil
 	},
-	decodePage: decodeMembershipPage(func(r camunda.TenantUserResult) string { return string(r.Username) }),
+	decodePage: decodeMembershipPage(func(r camunda.TenantUserResult) string { return r.Username }),
 }
 
 func NewTenantMemberUserResource() resource.Resource {

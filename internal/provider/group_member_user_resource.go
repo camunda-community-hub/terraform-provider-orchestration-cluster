@@ -34,7 +34,7 @@ var groupMemberUser = membershipDef{
 		}
 		return membershipResponse{r.StatusCode(), r.Body}, nil
 	},
-	decodePage: decodeMembershipPage(func(r camunda.GroupUserResult) string { return string(r.Username) }),
+	decodePage: decodeMembershipPage(func(r camunda.GroupUserResult) string { return r.Username }),
 }
 
 func NewGroupMemberUserResource() resource.Resource {
