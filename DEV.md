@@ -39,6 +39,16 @@ make build
    ```
 
 
+## Pre-commit hooks
+
+The repository ships a [pre-commit](https://pre-commit.com) configuration so unformatted code and stale generated docs are caught before CI. Install pre-commit (for example `brew install pre-commit`), then enable the hooks once per clone:
+
+```
+pre-commit install
+```
+
+On each commit it runs `gofmt -s` on staged Go files, and `make generate` on every commit. A hook that changes files fails the commit: review the changes, `git add` them and commit again. `make generate` needs `terraform` on the PATH. Run all hooks manually with `pre-commit run --all-files`.
+
 ## Testing the provider
 
 Start unit test with:
