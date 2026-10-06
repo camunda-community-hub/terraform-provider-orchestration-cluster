@@ -12,8 +12,9 @@ repos:
 
       - id: generate-docs
         name: make generate (docs and examples)
-        description: Regenerate docs when provider, example or tools sources change, so the CI generate job stays clean.
+        description: Regenerate docs when provider, example or tools sources change (including deletions), so the CI pre-commit job stays clean.
         entry: scripts/pre-commit-generate.sh
         language: system
         pass_filenames: false
-        files: ^(internal/provider/(?!.*_test\.go$).*\.go|examples/.*|tools/.*|main\.go)$
+        # Always run: deletions are not passed to hooks, so the script inspects the staged names itself.
+        always_run: true
