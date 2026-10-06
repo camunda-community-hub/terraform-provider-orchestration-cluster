@@ -120,7 +120,7 @@ provider "camundacluster" {
 }
 ```
 
-The value is a Go duration string between `1s` and `10m`. It is a property of the provider
+The value is a Go duration string between `5s` and `10m`. It is a property of the provider
 instance, so each provider alias (one per cluster) can use its own value. The polling delay
 (1s) and minimum poll interval (2s) are fixed. Configuration through environment variables is
 not supported yet and is tracked together with the other provider settings in
