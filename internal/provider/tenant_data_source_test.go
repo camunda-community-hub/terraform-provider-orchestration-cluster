@@ -58,8 +58,7 @@ func TestAccTenantDataSource(t *testing.T) {
 			},
 			// Not found by tenant ID.
 			{
-				PreConfig:   shortConsistencyTimeout(t),
-				Config:      providerConfig + testAccTenantDataSourceConfig(`tenant_id = "does-not-exist-tenant"`),
+				Config:      providerConfigShortConsistency + testAccTenantDataSourceConfig(`tenant_id = "does-not-exist-tenant"`),
 				ExpectError: regexp.MustCompile(`Unable to read tenant`),
 			},
 			// Not found by name.
@@ -71,9 +70,8 @@ func TestAccTenantDataSource(t *testing.T) {
 			// waits on /tenants/search, the endpoint the data source queries, via
 			// waitForTenantSearchDuplicates.
 			{
-				PreConfig: restoreConsistencyTimeout,
-				Config:    providerConfig + testAccTenantDuplicateNameResourcesConfig("Duplicate Tenant Name"),
-				Check:     waitForTenantSearchDuplicates("Duplicate Tenant Name"),
+				Config: providerConfig + testAccTenantDuplicateNameResourcesConfig("Duplicate Tenant Name"),
+				Check:  waitForTenantSearchDuplicates("Duplicate Tenant Name"),
 			},
 			// Ambiguous: the name matches more than one tenant.
 			{
@@ -109,7 +107,7 @@ func waitForTenantSearchDuplicates(name string) resource.TestCheckFunc {
 			return err
 		}
 
-		_, err = waitForConsistency(context.Background(), fmt.Sprintf("tenant search for name %q to return duplicates", name), func() ([]camunda.TenantResult, bool, error) {
+		_, err = waitForConsistency(context.Background(), nil, fmt.Sprintf("tenant search for name %q to return duplicates", name), func() ([]camunda.TenantResult, bool, error) {
 			filterReq := tenantSearchByNameRequest{}
 			filterReq.Filter.Name = name
 

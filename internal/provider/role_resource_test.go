@@ -102,7 +102,7 @@ func checkRoleExistsInEngine(roleName string) resource.TestCheckFunc {
 			}
 			roleId := rs.Primary.ID
 
-			_, err := waitForConsistency(context.Background(), fmt.Sprintf("role %q in engine", roleId), func() (*camunda.GetRoleResponse, bool, error) {
+			_, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("role %q in engine", roleId), func() (*camunda.GetRoleResponse, bool, error) {
 				resp, err := client.GetRoleWithResponse(context.Background(), roleId)
 				if err != nil {
 					return nil, false, err

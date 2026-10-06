@@ -100,11 +100,31 @@ locally and easy to mistake for a different bug.
 a single `GET`/search and trusting the result immediately after a mutation. The shared
 `waitForConsistency` helper (`internal/provider/consistency.go`) exists for exactly this: it
 polls a read with backoff until it reflects the expected post-mutation state (or a bounded
-timeout elapses), and callers only need to supply the small closure describing what "expected"
+timeout elapses, see below), and callers only need to supply the small closure describing what "expected"
 means for their case. See `internal/provider/tenant_resource.go`'s `readTenantWithRetry`
 (post-create) and `readTenantUntilConsistent` (post-update) for the canonical pattern to
 follow when adding a new resource; several other resources in `internal/provider/` follow the
 same shape for their own create/update/delete paths.
+
+### Configuring the consistency timeout
+
+Polling gives up after a bounded time, 30 seconds by default. Set `consistency_timeout` in the
+`provider` block to change it, for example to allow more time on a slow cluster, or less to get
+faster feedback when a data source looks up something that does not exist (such a lookup keeps
+polling for the full timeout before reporting not-found):
+
+```hcl
+provider "camundacluster" {
+  url                 = "https://cluster.example.com/v2"
+  consistency_timeout = "2m"
+}
+```
+
+The value is a Go duration string between `1s` and `10m`. It is a property of the provider
+instance, so each provider alias (one per cluster) can use its own value. The polling delay
+(1s) and minimum poll interval (2s) are fixed. Configuration through environment variables is
+not supported yet and is tracked together with the other provider settings in
+[#18](https://github.com/camunda/terraform-provider-orchestration-cluster/issues/18).
 
 ## Requirements
 

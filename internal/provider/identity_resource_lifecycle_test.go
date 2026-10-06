@@ -78,7 +78,7 @@ func testDeleteOutOfBand(t *testing.T, tc identityLifecycleCase, id string) {
 	if status != http.StatusNoContent {
 		t.Fatalf("deleting %s out-of-band: unexpected HTTP status %d", id, status)
 	}
-	_, err = waitForConsistency(t.Context(), fmt.Sprintf("%s deletion", id), func() (int, bool, error) {
+	_, err = waitForConsistency(t.Context(), nil, fmt.Sprintf("%s deletion", id), func() (int, bool, error) {
 		status, err := tc.deleteInEngine(t.Context(), client, id)
 		return status, status == http.StatusNotFound, err
 	})
