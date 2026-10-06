@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	// minConsistencyTimeout is the smallest accepted consistency_timeout. It matches the fixed
-	// polling Delay, so at least one poll always fits in the budget.
-	minConsistencyTimeout = 1 * time.Second
+	// minConsistencyTimeout is the smallest accepted consistency_timeout. The polling timeout
+	// also covers the fixed Delay (1s) before the first read, and a poll can take up to
+	// MinTimeout (2s), so anything lower could expire before a single read completes.
+	minConsistencyTimeout = 5 * time.Second
 
 	// maxConsistencyTimeout is the largest accepted consistency_timeout. It keeps a mistyped
 	// value from stalling a run for hours while still leaving room for very slow clusters.

@@ -108,7 +108,7 @@ func (p *CamundaClusterProvider) Schema(ctx context.Context, req provider.Schema
 			"consistency_timeout": schema.StringAttribute{
 				MarkdownDescription: "How long resources and data sources of this provider instance wait for the cluster's eventually consistent read side to reflect a change, as a Go duration string such as `30s` or `2m`. " +
 					"Raise it for slow clusters; lower it to get faster feedback when a data source looks up something that does not exist. " +
-					"Must be between 1s and 10m. Defaults to `30s`.",
+					"Must be between 5s and 10m. Defaults to `30s`.",
 				Optional:   true,
 				Validators: []validator.String{consistencyTimeoutValidator{}},
 			},

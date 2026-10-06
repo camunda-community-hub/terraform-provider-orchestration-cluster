@@ -21,7 +21,7 @@ func TestParseConsistencyTimeout(t *testing.T) {
 		wantErr string
 	}{
 		{in: "30s", want: 30 * time.Second},
-		{in: "1s", want: time.Second},
+		{in: "5s", want: 5 * time.Second},
 		{in: "2m", want: 2 * time.Minute},
 		{in: "1m30s", want: 90 * time.Second},
 		{in: "10m", want: 10 * time.Minute},
@@ -30,7 +30,8 @@ func TestParseConsistencyTimeout(t *testing.T) {
 		{in: "30", wantErr: "not a valid duration"},
 		{in: "0s", wantErr: "out of range"},
 		{in: "-5s", wantErr: "out of range"},
-		{in: "999ms", wantErr: "out of range"},
+		{in: "4999ms", wantErr: "out of range"},
+		{in: "1s", wantErr: "out of range"},
 		{in: "10m1s", wantErr: "out of range"},
 		{in: "24h", wantErr: "out of range"},
 	}
@@ -64,7 +65,7 @@ func TestConsistencyTimeoutValidator(t *testing.T) {
 		{name: "null", value: types.StringNull()},
 		{name: "unknown", value: types.StringUnknown()},
 		{name: "malformed", value: types.StringValue("abc"), wantErr: true},
-		{name: "too small", value: types.StringValue("100ms"), wantErr: true},
+		{name: "too small", value: types.StringValue("4s"), wantErr: true},
 		{name: "too large", value: types.StringValue("1h"), wantErr: true},
 	}
 
