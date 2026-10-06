@@ -12,9 +12,8 @@ repos:
 
       - id: generate-docs
         name: make generate (docs and examples)
-        description: Regenerate docs when provider, example or tools sources change (including deletions), so the CI pre-commit job stays clean.
-        entry: scripts/pre-commit-generate.sh
+        description: Regenerate docs and examples so the CI pre-commit job stays clean. A change to generated files fails the commit; re-add and commit again.
+        entry: make generate
         language: system
         pass_filenames: false
-        # Always run: deletions are not passed to hooks, so the script inspects the staged names itself.
         always_run: true
