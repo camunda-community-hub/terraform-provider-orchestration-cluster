@@ -155,7 +155,7 @@ func (d *TenantDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 // stabilization and uniqueness handling as GroupDataSource.Read (see the comments there). It
 // reports diagnostics on resp and returns false on any failure.
 func (d *TenantDataSource) lookupByName(ctx context.Context, name string, resp *datasource.ReadResponse) (*camunda.TenantResult, bool) {
-	items, matchCount, hardErr, err := searchByNameUntilStable(ctx, fmt.Sprintf("tenant named %q", name),
+	items, matchCount, hardErr, err := searchByNameUntilStable(ctx, d.client, fmt.Sprintf("tenant named %q", name),
 		func() ([]camunda.TenantResult, error) {
 			filterReq := tenantSearchByNameRequest{}
 			filterReq.Filter.Name = name
@@ -200,7 +200,7 @@ func (d *TenantDataSource) lookupByName(ctx context.Context, name string, resp *
 		return nil, false
 	}
 
-	readResp, err := readUntilConsistent(ctx, fmt.Sprintf("tenant named %q", name),
+	readResp, err := readUntilConsistent(ctx, d.client, fmt.Sprintf("tenant named %q", name),
 		func() (*camunda.GetTenantResponse, error) {
 			return readTenantWithRetry(ctx, d.client, items[0].TenantId)
 		},

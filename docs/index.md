@@ -15,6 +15,9 @@ description: |-
 provider "camundacluster" {
   url = "https://cluster.example.com/v2"
 
+  # Optional: how long to wait for the eventually consistent read side (default 30s).
+  consistency_timeout = "30s"
+
   oidc {
     login_url     = "https://login.example.com/oauth/token"
     audience      = "cluster.example.com"
@@ -34,6 +37,7 @@ provider "camundacluster" {
 ### Optional
 
 - `basic_auth` (Attributes) (see [below for nested schema](#nestedatt--basic_auth))
+- `consistency_timeout` (String) How long resources and data sources of this provider instance wait for the cluster's eventually consistent read side to reflect a change, as a Go duration string such as `30s` or `2m`. Raise it for slow clusters; lower it to get faster feedback when a data source looks up something that does not exist. Must be between 5s and 10m. Defaults to `30s`.
 - `oidc` (Attributes) (see [below for nested schema](#nestedatt--oidc))
 
 <a id="nestedatt--basic_auth"></a>

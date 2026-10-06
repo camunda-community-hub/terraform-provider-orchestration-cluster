@@ -268,7 +268,7 @@ func (r *MappingRuleResource) ImportState(ctx context.Context, req resource.Impo
 // readMappingRuleWithRetry handles the eventual consistency of fetching a mapping rule by retrying a few times:
 // if a mapping rule was just created, it may not be immediately available through the API.
 func readMappingRuleWithRetry(ctx context.Context, client *camunda.ClientWithResponses, mappingRuleId string) (*camunda.GetMappingRuleResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("mapping rule %q", mappingRuleId), func() (*camunda.GetMappingRuleResponse, bool, error) {
+	return waitForConsistency(ctx, client, fmt.Sprintf("mapping rule %q", mappingRuleId), func() (*camunda.GetMappingRuleResponse, bool, error) {
 		readResp, err := client.GetMappingRuleWithResponse(ctx, mappingRuleId)
 		if err != nil {
 			return nil, false, err
@@ -290,7 +290,7 @@ func readMappingRuleWithRetry(ctx context.Context, client *camunda.ClientWithRes
 // creates: the read-side projection can briefly return the pre-update values right after a
 // successful PUT, which would otherwise make Terraform's post-apply refresh plan non-empty.
 func readMappingRuleUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, mappingRuleId, expectedClaimName, expectedClaimValue, expectedName string) (*camunda.GetMappingRuleResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("mapping rule %q", mappingRuleId), func() (*camunda.GetMappingRuleResponse, bool, error) {
+	return waitForConsistency(ctx, client, fmt.Sprintf("mapping rule %q", mappingRuleId), func() (*camunda.GetMappingRuleResponse, bool, error) {
 		readResp, err := client.GetMappingRuleWithResponse(ctx, mappingRuleId)
 		if err != nil {
 			return nil, false, err

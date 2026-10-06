@@ -16,6 +16,18 @@ provider "camundacluster" {
 	url = "` + testClusterURL + `"
 }
 `
+
+	// providerConfigShortConsistency shortens the provider's consistency timeout for steps
+	// that expect a not-found error. In production a lookup that finds nothing keeps polling
+	// for the full timeout, because the read side may simply not have caught up with a
+	// create yet. Those steps already know the object does not exist, so waiting the whole
+	// default only slows the suite.
+	providerConfigShortConsistency = `
+provider "camundacluster" {
+	url                 = "` + testClusterURL + `"
+	consistency_timeout = "5s"
+}
+`
 )
 
 // testAccProtoV6ProviderFactories is used to instantiate a provider during acceptance testing.
@@ -29,7 +41,7 @@ func testAccPreCheck(t *testing.T) {
 	// This endpoint doesn't require authentication
 	statusEndpoint := testClusterURL + "/status"
 
-	_, err := waitForConsistency(t.Context(), "camunda cluster status endpoint", func() (int, bool, error) {
+	_, err := waitForConsistency(t.Context(), nil, "camunda cluster status endpoint", func() (int, bool, error) {
 		resp, err := http.Get(statusEndpoint)
 		if err != nil {
 			// The cluster may not be reachable yet at all at this point in a

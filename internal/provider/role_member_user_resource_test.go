@@ -81,7 +81,7 @@ func unassignRoleMemberUserOutOfBand(roleId, userId string) func() {
 		// provider. Wait for the removal to actually be visible before letting
 		// Terraform's own refresh run, or it can still see the (about-to-be-gone)
 		// membership and report an empty plan instead of detecting the drift.
-		if _, err := waitForConsistency(context.Background(), fmt.Sprintf("role %q user %q unassignment", roleId, userId), func() (bool, bool, error) {
+		if _, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("role %q user %q unassignment", roleId, userId), func() (bool, bool, error) {
 			found, err := searchAllRoleUsers(context.Background(), client, roleId, userId)
 			if err != nil {
 				return false, false, err
@@ -127,7 +127,7 @@ func checkRoleUserAssignmentExistsInEngine() resource.TestCheckFunc {
 			rid := rs.Primary.Attributes["role_id"]
 			uid := rs.Primary.Attributes["user_id"]
 
-			_, err := waitForConsistency(context.Background(), fmt.Sprintf("user %q in role %q in engine", uid, rid), func() (bool, bool, error) {
+			_, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("user %q in role %q in engine", uid, rid), func() (bool, bool, error) {
 				searchResp, err := client.SearchUsersForRoleWithResponse(context.Background(), rid, camunda.SearchUsersForRoleJSONRequestBody{})
 				if err != nil {
 					return false, false, err

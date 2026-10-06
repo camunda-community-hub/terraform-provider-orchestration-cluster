@@ -175,7 +175,7 @@ func deleteTenantOutOfBand(tenantId string) func() {
 		}
 
 		// Wait for the deletion to be visible so Terraform's refresh detects the drift.
-		if _, err := waitForConsistency(context.Background(), fmt.Sprintf("tenant %q deletion", tenantId), func() (bool, bool, error) {
+		if _, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("tenant %q deletion", tenantId), func() (bool, bool, error) {
 			resp, err := client.GetTenantWithResponse(context.Background(), tenantId)
 			if err != nil {
 				return false, false, err
