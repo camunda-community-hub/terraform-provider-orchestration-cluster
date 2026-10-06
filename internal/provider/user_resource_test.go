@@ -226,7 +226,7 @@ func deleteUserOutOfBand(t *testing.T, username string) func() {
 			t.Fatalf("deleting user %q out of band: got HTTP %d: %s", username, resp.StatusCode(), resp.Body)
 		}
 
-		_, err = waitForConsistency(context.Background(), fmt.Sprintf("user %q deletion", username), func() (*camunda.GetUserResponse, bool, error) {
+		_, err = waitForConsistency(context.Background(), nil, fmt.Sprintf("user %q deletion", username), func() (*camunda.GetUserResponse, bool, error) {
 			getResp, err := client.GetUserWithResponse(context.Background(), username)
 			if err != nil {
 				return nil, false, err

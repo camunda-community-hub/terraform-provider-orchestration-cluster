@@ -256,7 +256,7 @@ func (r *RoleResource) ImportState(ctx context.Context, req resource.ImportState
 // readRoleWithRetry handles the eventual consistency of fetching a role by retrying a few
 // times: if a role was just created, it may not be immediately available through the API.
 func readRoleWithRetry(ctx context.Context, client *camunda.ClientWithResponses, roleId string) (*camunda.GetRoleResponse, error) {
-	return readWithRetry(ctx, fmt.Sprintf("role %q", roleId),
+	return readWithRetry(ctx, client, fmt.Sprintf("role %q", roleId),
 		func() (*camunda.GetRoleResponse, error) {
 			return client.GetRoleWithResponse(ctx, roleId)
 		},
@@ -277,7 +277,7 @@ func readRoleWithRetry(ctx context.Context, client *camunda.ClientWithResponses,
 // the read-side projection can briefly return the pre-update values right after a successful
 // PUT, which would otherwise make Terraform's post-apply refresh plan non-empty.
 func readRoleUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, roleId, expectedName string, expectedDescription *string) (*camunda.GetRoleResponse, error) {
-	return readUntilConsistent(ctx, fmt.Sprintf("role %q", roleId),
+	return readUntilConsistent(ctx, client, fmt.Sprintf("role %q", roleId),
 		func() (*camunda.GetRoleResponse, error) {
 			return client.GetRoleWithResponse(ctx, roleId)
 		},

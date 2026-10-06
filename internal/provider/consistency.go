@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
+
+	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
 )
 
 // consistencyPolling holds the default timing for polling an eventually-consistent
@@ -35,7 +37,10 @@ var consistencyPolling = struct {
 //   - (zero value, _, err) a hard error; stop polling and return it
 //
 // subject is used only to produce a readable timeout error, e.g. `tenant "acme"`.
-func waitForConsistency[T any](ctx context.Context, subject string, refresh func() (T, bool, error)) (T, error) {
+//
+// client selects the timeout: it is the consistency_timeout of the provider instance that
+// created client (see consistencyTimeoutFor). A nil client uses the default.
+func waitForConsistency[T any](ctx context.Context, client *camunda.ClientWithResponses, subject string, refresh func() (T, bool, error)) (T, error) {
 	const pending = "pending"
 	const ready = "ready"
 
@@ -63,7 +68,7 @@ func waitForConsistency[T any](ctx context.Context, subject string, refresh func
 
 		Delay:      consistencyPolling.Delay,
 		MinTimeout: consistencyPolling.MinTimeout,
-		Timeout:    consistencyPolling.Timeout,
+		Timeout:    consistencyTimeoutFor(client),
 	}
 
 	if _, err := state.WaitForStateContext(ctx); err != nil {
@@ -76,8 +81,8 @@ func waitForConsistency[T any](ctx context.Context, subject string, refresh func
 // readWithRetry wraps waitForConsistency for the common "poll GET until it succeeds"
 // shape used right after a create: get performs one read, isReady reports whether that
 // read is usable yet.
-func readWithRetry[R any](ctx context.Context, label string, get func() (R, error), isReady func(R) (bool, error)) (R, error) {
-	return waitForConsistency(ctx, label, func() (R, bool, error) {
+func readWithRetry[R any](ctx context.Context, client *camunda.ClientWithResponses, label string, get func() (R, error), isReady func(R) (bool, error)) (R, error) {
+	return waitForConsistency(ctx, client, label, func() (R, bool, error) {
 		value, err := get()
 		if err != nil {
 			var zero R
@@ -98,8 +103,8 @@ func readWithRetry[R any](ctx context.Context, label string, get func() (R, erro
 // reflects the expected post-write values" shape used right after an update: get
 // performs one read, isConsistent reports whether that read already matches what was
 // just written.
-func readUntilConsistent[R any](ctx context.Context, label string, get func() (R, error), isConsistent func(R) (bool, error)) (R, error) {
-	return waitForConsistency(ctx, label, func() (R, bool, error) {
+func readUntilConsistent[R any](ctx context.Context, client *camunda.ClientWithResponses, label string, get func() (R, error), isConsistent func(R) (bool, error)) (R, error) {
+	return waitForConsistency(ctx, client, label, func() (R, bool, error) {
 		value, err := get()
 		if err != nil {
 			var zero R
@@ -130,11 +135,11 @@ func readUntilConsistent[R any](ctx context.Context, label string, get func() (R
 // waitForConsistency's wrapped timeout/cancellation error). Callers use matchCount and
 // hardErr to classify the failure: a not-found case (matchCount == 0), an ambiguous or
 // unstable case (matchCount > 0), or a hard search error (hardErr != nil).
-func searchByNameUntilStable[T any](ctx context.Context, label string, search func() ([]T, error), idOf func(T) string) (items []T, matchCount int, hardErr error, err error) {
+func searchByNameUntilStable[T any](ctx context.Context, client *camunda.ClientWithResponses, label string, search func() ([]T, error), idOf func(T) string) (items []T, matchCount int, hardErr error, err error) {
 	matchCount = -1
 	var lastIDs []string
 
-	items, err = waitForConsistency(ctx, label, func() ([]T, bool, error) {
+	items, err = waitForConsistency(ctx, client, label, func() ([]T, bool, error) {
 		hardErr = nil
 
 		results, searchErr := search()

@@ -251,7 +251,7 @@ func assignMembershipOutOfBand(t *testing.T, def membershipDef, ownerId, memberI
 	if resp.Status < 200 || resp.Status > 299 {
 		t.Fatalf("assigning %s %q to %s %q out-of-band: HTTP %d: %s", def.memberName(), memberId, def.ownerLabel, ownerId, resp.Status, resp.Body)
 	}
-	if _, err := waitForConsistency(ctx, fmt.Sprintf("%s %q %s %q assignment", def.ownerLabel, ownerId, def.memberName(), memberId), func() (bool, bool, error) {
+	if _, err := waitForConsistency(ctx, nil, fmt.Sprintf("%s %q %s %q assignment", def.ownerLabel, ownerId, def.memberName(), memberId), func() (bool, bool, error) {
 		found, err := def.contains(ctx, client, ownerId, memberId)
 		return found, found, err
 	}); err != nil {

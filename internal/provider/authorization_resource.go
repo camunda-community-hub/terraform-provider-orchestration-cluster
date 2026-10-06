@@ -790,7 +790,7 @@ func authorizationResultToModel(ctx context.Context, id types.String, result *ca
 // retrying a few times: if an authorization was just created, it may not be immediately
 // available through the API.
 func readAuthorizationWithRetry(ctx context.Context, client *camunda.ClientWithResponses, authKey string) (*camunda.GetAuthorizationResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("authorization %q", authKey), func() (*camunda.GetAuthorizationResponse, bool, error) {
+	return waitForConsistency(ctx, client, fmt.Sprintf("authorization %q", authKey), func() (*camunda.GetAuthorizationResponse, bool, error) {
 		readResp, err := client.GetAuthorizationWithResponse(ctx, authKey)
 		if err != nil {
 			return nil, false, err
@@ -817,7 +817,7 @@ func readAuthorizationWithRetry(ctx context.Context, client *camunda.ClientWithR
 // fields be accepted while others (e.g. owner_id changed but permissions didn't) are still
 // pre-update.
 func readAuthorizationUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, authKey string, expectedOwnerId string, expectedOwnerType camunda.OwnerTypeEnum, expectedResourceType camunda.ResourceTypeEnum, expectedPermissions []string, expectedVariant authorizationRequestVariant) (*camunda.GetAuthorizationResponse, error) {
-	return waitForConsistency(ctx, fmt.Sprintf("authorization %q", authKey), func() (*camunda.GetAuthorizationResponse, bool, error) {
+	return waitForConsistency(ctx, client, fmt.Sprintf("authorization %q", authKey), func() (*camunda.GetAuthorizationResponse, bool, error) {
 		readResp, err := client.GetAuthorizationWithResponse(ctx, authKey)
 		if err != nil {
 			return nil, false, err

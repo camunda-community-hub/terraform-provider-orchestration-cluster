@@ -177,7 +177,7 @@ func unassignTenantMemberOutOfBand(def membershipDef, tenantId, memberId string)
 
 		// The search index used by Read lags behind the unassignment; wait for the removal to
 		// be visible so Terraform's refresh deterministically detects the drift.
-		if _, err := waitForConsistency(context.Background(), fmt.Sprintf("tenant %q %s %q unassignment", tenantId, def.memberName(), memberId), func() (bool, bool, error) {
+		if _, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("tenant %q %s %q unassignment", tenantId, def.memberName(), memberId), func() (bool, bool, error) {
 			found, err := def.contains(context.Background(), client, tenantId, memberId)
 			if err != nil {
 				return false, false, err
@@ -206,7 +206,7 @@ func checkTenantMemberExistsInEngine(def membershipDef, tenantId, memberId strin
 			if got := rs.Primary.Attributes[def.memberAttr()]; got != memberId {
 				return fmt.Errorf("%s = %q in state, want %q", def.memberAttr(), got, memberId)
 			}
-			_, err := waitForConsistency(context.Background(), fmt.Sprintf("%s %q in tenant %q in engine", def.memberName(), memberId, tenantId), func() (bool, bool, error) {
+			_, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("%s %q in tenant %q in engine", def.memberName(), memberId, tenantId), func() (bool, bool, error) {
 				found, err := def.contains(context.Background(), client, tenantId, memberId)
 				if err != nil {
 					return false, false, err

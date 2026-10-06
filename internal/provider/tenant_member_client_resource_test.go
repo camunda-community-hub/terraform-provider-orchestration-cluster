@@ -81,7 +81,7 @@ func unassignTenantMemberClientOutOfBand(tenantId, clientId string) func() {
 		// provider. Wait for the removal to actually be visible before letting
 		// Terraform's own refresh run, or it can still see the (about-to-be-gone)
 		// membership and report an empty plan instead of detecting the drift.
-		if _, err := waitForConsistency(context.Background(), fmt.Sprintf("tenant %q client %q unassignment", tenantId, clientId), func() (bool, bool, error) {
+		if _, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("tenant %q client %q unassignment", tenantId, clientId), func() (bool, bool, error) {
 			found, err := searchAllTenantClients(context.Background(), client, tenantId, clientId)
 			if err != nil {
 				return false, false, err
@@ -120,7 +120,7 @@ func checkTenantClientAssignmentExistsInEngine() resource.TestCheckFunc {
 			tid := rs.Primary.Attributes["tenant_id"]
 			cid := rs.Primary.Attributes["client_id"]
 
-			_, err := waitForConsistency(context.Background(), fmt.Sprintf("client %q in tenant %q in engine", cid, tid), func() (bool, bool, error) {
+			_, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("client %q in tenant %q in engine", cid, tid), func() (bool, bool, error) {
 				searchResp, err := client.SearchClientsForTenantWithResponse(context.Background(), tid, camunda.SearchClientsForTenantJSONRequestBody{})
 				if err != nil {
 					return false, false, err
