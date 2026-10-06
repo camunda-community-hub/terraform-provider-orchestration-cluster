@@ -2,9 +2,11 @@ package provider
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+	"weak"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -191,4 +193,29 @@ func TestWaitForConsistency_HonorsPerClientTimeout(t *testing.T) {
 	if _, err := waitForConsistency(context.Background(), long, "widget", refresh); err != nil {
 		t.Fatalf("long timeout: unexpected error: %s", err)
 	}
+}
+
+func TestRegisterConsistencyTimeout_DoesNotRetainClient(t *testing.T) {
+	var key weak.Pointer[camunda.ClientWithResponses]
+	func() {
+		client, err := camunda.NewClientWithResponses("http://localhost:1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		registerConsistencyTimeout(client, 7*time.Second)
+		key = weak.Make(client)
+		if got := consistencyTimeoutFor(client); got != 7*time.Second {
+			t.Fatalf("got %s, want 7s", got)
+		}
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, ok := clientConsistencyTimeouts.Load(key); !ok {
+			return
+		}
+		runtime.GC()
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("registry still holds the entry after the client became unreachable")
 }

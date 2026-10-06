@@ -3,8 +3,10 @@ package provider
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
+	"weak"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -27,19 +29,26 @@ const (
 // provider instance that created it. Terraform runs one provider instance per provider block
 // (including aliases), each with its own client, so keying by client keeps the setting
 // per-instance without threading it through every resource and data source.
+//
+// Keys are weak pointers and entries are removed once the client is garbage collected, so the
+// registry never keeps a client (or the credentials its request editors capture) alive.
 var clientConsistencyTimeouts sync.Map
 
 // registerConsistencyTimeout records the consistency timeout of the provider instance that
 // owns client.
 func registerConsistencyTimeout(client *camunda.ClientWithResponses, timeout time.Duration) {
-	clientConsistencyTimeouts.Store(client, timeout)
+	key := weak.Make(client)
+	clientConsistencyTimeouts.Store(key, timeout)
+	runtime.AddCleanup(client, func(key weak.Pointer[camunda.ClientWithResponses]) {
+		clientConsistencyTimeouts.Delete(key)
+	}, key)
 }
 
 // consistencyTimeoutFor returns the consistency timeout of the provider instance that owns
 // client, or the default when client is nil or was not configured through the provider.
 func consistencyTimeoutFor(client *camunda.ClientWithResponses) time.Duration {
 	if client != nil {
-		if timeout, ok := clientConsistencyTimeouts.Load(client); ok {
+		if timeout, ok := clientConsistencyTimeouts.Load(weak.Make(client)); ok {
 			if d, ok := timeout.(time.Duration); ok {
 				return d
 			}
