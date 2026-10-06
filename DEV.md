@@ -47,7 +47,7 @@ The repository ships a [pre-commit](https://pre-commit.com) configuration so unf
 pre-commit install
 ```
 
-On each commit it runs `gofmt -s` on staged Go files, and `make generate` on every commit. A hook that changes files fails the commit: review the changes, `git add` them and commit again. `make generate` needs `terraform` on the PATH. Run all hooks manually with `pre-commit run --all-files`.
+On each commit it runs `gofmt -s` on staged Go files and `make generate-check` (`make generate`, about 5 seconds, then a check for new untracked files under `docs/` and `examples/`), even when no provider code changed. A hook that changes files, or generation that creates new untracked files, fails the commit: review the changes, `git add` them and commit again. The same hooks run in CI as the required `pre-commit` check. `make generate` needs `terraform` on the PATH. Run all hooks manually with `pre-commit run --all-files`.
 
 ## Testing the provider
 
