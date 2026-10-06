@@ -13,9 +13,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -55,6 +57,8 @@ type CamundaClusterProviderModel struct {
 	BasicAuth *CamundaClusterBasicAuthProviderModel `tfsdk:"basic_auth"`
 	OIDC      *CamundaClusterOIDCAuthProviderModel  `tfsdk:"oidc"`
 	URL       types.String                          `tfsdk:"url"`
+
+	ConsistencyTimeout types.String `tfsdk:"consistency_timeout"`
 }
 
 func (p *CamundaClusterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -101,6 +105,13 @@ func (p *CamundaClusterProvider) Schema(ctx context.Context, req provider.Schema
 				},
 				Optional: true,
 			},
+			"consistency_timeout": schema.StringAttribute{
+				MarkdownDescription: "How long resources and data sources of this provider instance wait for the cluster's eventually consistent read side to reflect a change, as a Go duration string such as `30s` or `2m`. " +
+					"Raise it for slow clusters; lower it to get faster feedback when a data source looks up something that does not exist. " +
+					"Must be between 5s and 10m. Defaults to `30s`.",
+				Optional:   true,
+				Validators: []validator.String{consistencyTimeoutValidator{}},
+			},
 			"url": schema.StringAttribute{
 				MarkdownDescription: "The URL of the Camunda cluster API.",
 				Required:            true,
@@ -115,6 +126,21 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.ConsistencyTimeout.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("consistency_timeout"),
+			"Unknown consistency_timeout",
+			"The provider cannot be configured with a consistency_timeout that is not known until apply.",
+		)
+		return
+	}
+
+	consistencyTimeout, err := consistencyTimeoutFromConfig(data.ConsistencyTimeout)
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("consistency_timeout"), "Invalid consistency_timeout", err.Error())
 		return
 	}
 
@@ -159,7 +185,7 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 	}
 
 	var client *camunda.ClientWithResponses
-	client, err := camunda.NewClientWithResponses(data.URL.ValueString(), opts...)
+	client, err = camunda.NewClientWithResponses(data.URL.ValueString(), opts...)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Client Creation Failed",
@@ -167,6 +193,8 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 		)
 		return
 	}
+
+	registerConsistencyTimeout(client, consistencyTimeout)
 
 	resp.DataSourceData = client
 	resp.ResourceData = client

@@ -102,7 +102,7 @@ func checkGroupExistsInEngine(groupName string) resource.TestCheckFunc {
 			}
 			groupId := rs.Primary.ID
 
-			_, err := waitForConsistency(context.Background(), fmt.Sprintf("group %q in engine", groupId), func() (*camunda.GetGroupResponse, bool, error) {
+			_, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("group %q in engine", groupId), func() (*camunda.GetGroupResponse, bool, error) {
 				resp, err := client.GetGroupWithResponse(context.Background(), groupId)
 				if err != nil {
 					return nil, false, err

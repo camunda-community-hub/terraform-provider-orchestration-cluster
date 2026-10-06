@@ -57,8 +57,7 @@ func TestAccGroupDataSource(t *testing.T) {
 			},
 			// Not found: no group exists with this name.
 			{
-				PreConfig:   shortConsistencyTimeout(t),
-				Config:      providerConfig + testAccGroupDataSourceConfig(`"does-not-exist-group-name"`),
+				Config:      providerConfigShortConsistency + testAccGroupDataSourceConfig(`"does-not-exist-group-name"`),
 				ExpectError: regexp.MustCompile(`No group found with name`),
 			},
 			// Create two groups sharing the same name to exercise the ambiguous path.
@@ -67,9 +66,8 @@ func TestAccGroupDataSource(t *testing.T) {
 			// that is a separate eventually-consistent projection and can be
 			// consistent while search still reflects only one of the two groups.
 			{
-				PreConfig: restoreConsistencyTimeout,
-				Config:    providerConfig + testAccGroupDuplicateNameResourcesConfig("Duplicate Group Name"),
-				Check:     waitForGroupSearchDuplicates("Duplicate Group Name"),
+				Config: providerConfig + testAccGroupDuplicateNameResourcesConfig("Duplicate Group Name"),
+				Check:  waitForGroupSearchDuplicates("Duplicate Group Name"),
 			},
 			// Ambiguous: the name matches more than one group.
 			{
@@ -118,7 +116,7 @@ func waitForGroupSearchDuplicates(name string) resource.TestCheckFunc {
 			return err
 		}
 
-		_, err = waitForConsistency(context.Background(), fmt.Sprintf("group search for name %q to return duplicates", name), func() ([]camunda.GroupResult, bool, error) {
+		_, err = waitForConsistency(context.Background(), nil, fmt.Sprintf("group search for name %q to return duplicates", name), func() ([]camunda.GroupResult, bool, error) {
 			filterReq := groupSearchByNameRequest{}
 			filterReq.Filter.Name = name
 

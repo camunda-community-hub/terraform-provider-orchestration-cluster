@@ -129,7 +129,7 @@ func unassignMappingRuleMemberOutOfBand(def membershipDef, ownerId, memberId str
 			panic(err)
 		}
 
-		if _, err := waitForConsistency(context.Background(), fmt.Sprintf("%s %q %s %q unassignment", def.ownerLabel, ownerId, def.memberName(), memberId), func() (bool, bool, error) {
+		if _, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("%s %q %s %q unassignment", def.ownerLabel, ownerId, def.memberName(), memberId), func() (bool, bool, error) {
 			found, err := def.contains(context.Background(), client, ownerId, memberId)
 			if err != nil {
 				return false, false, err
@@ -158,7 +158,7 @@ func checkMappingRuleMemberExistsInEngine(def membershipDef, ownerId, memberId s
 			if got := rs.Primary.Attributes[def.memberAttr()]; got != memberId {
 				return fmt.Errorf("%s = %q in state, want %q", def.memberAttr(), got, memberId)
 			}
-			_, err := waitForConsistency(context.Background(), fmt.Sprintf("%s %q in %s %q in engine", def.memberName(), memberId, def.ownerLabel, ownerId), func() (bool, bool, error) {
+			_, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("%s %q in %s %q in engine", def.memberName(), memberId, def.ownerLabel, ownerId), func() (bool, bool, error) {
 				found, err := def.contains(context.Background(), client, ownerId, memberId)
 				if err != nil {
 					return false, false, err

@@ -270,7 +270,7 @@ func (r *UserResource) ImportState(ctx context.Context, req resource.ImportState
 // readUserWithRetry handles the eventual consistency of fetching a user by retrying a few times:
 // if a user was just created, it may not be immediately available through the API.
 func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses, username string) (*camunda.GetUserResponse, error) {
-	return readWithRetry(ctx, fmt.Sprintf("user %q", username),
+	return readWithRetry(ctx, client, fmt.Sprintf("user %q", username),
 		func() (*camunda.GetUserResponse, error) {
 			return client.GetUserWithResponse(ctx, username)
 		},
@@ -291,7 +291,7 @@ func readUserWithRetry(ctx context.Context, client *camunda.ClientWithResponses,
 // projection can briefly return the pre-update values right after a successful PUT, which
 // would otherwise make Terraform's post-apply refresh plan non-empty.
 func readUserUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, username string, expectedName, expectedEmail *string) (*camunda.GetUserResponse, error) {
-	return readUntilConsistent(ctx, fmt.Sprintf("user %q", username),
+	return readUntilConsistent(ctx, client, fmt.Sprintf("user %q", username),
 		func() (*camunda.GetUserResponse, error) {
 			return client.GetUserWithResponse(ctx, username)
 		},

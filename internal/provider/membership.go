@@ -239,7 +239,7 @@ func (r *membershipResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	_, err = waitForConsistency(ctx, fmt.Sprintf("%s %q %s %q assignment", d.ownerLabel, ownerId.ValueString(), d.memberName(), memberId.ValueString()), func() (bool, bool, error) {
+	_, err = waitForConsistency(ctx, r.client, fmt.Sprintf("%s %q %s %q assignment", d.ownerLabel, ownerId.ValueString(), d.memberName(), memberId.ValueString()), func() (bool, bool, error) {
 		found, err := d.contains(ctx, r.client, ownerId.ValueString(), memberId.ValueString())
 		if err != nil {
 			if err.Error() == "not_found" {

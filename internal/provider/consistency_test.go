@@ -26,7 +26,7 @@ func withFastConsistencyPolling(t *testing.T) {
 
 func TestWaitForConsistency_ImmediateSuccess(t *testing.T) {
 	calls := 0
-	got, err := waitForConsistency(context.Background(), "widget \"a\"", func() (string, bool, error) {
+	got, err := waitForConsistency(context.Background(), nil, "widget \"a\"", func() (string, bool, error) {
 		calls++
 		return "value", true, nil
 	})
@@ -46,7 +46,7 @@ func TestWaitForConsistency_EventuallyConsistent(t *testing.T) {
 	withFastConsistencyPolling(t)
 
 	calls := 0
-	got, err := waitForConsistency(context.Background(), "widget \"a\"", func() (int, bool, error) {
+	got, err := waitForConsistency(context.Background(), nil, "widget \"a\"", func() (int, bool, error) {
 		calls++
 		// Not consistent yet for the first two reads, consistent on the third.
 		return calls, calls >= 3, nil
@@ -68,7 +68,7 @@ func TestWaitForConsistency_HardErrorStopsImmediately(t *testing.T) {
 
 	wantErr := errors.New("boom")
 	calls := 0
-	_, err := waitForConsistency(context.Background(), "widget \"a\"", func() (string, bool, error) {
+	_, err := waitForConsistency(context.Background(), nil, "widget \"a\"", func() (string, bool, error) {
 		calls++
 		return "", false, wantErr
 	})
@@ -87,7 +87,7 @@ func TestWaitForConsistency_HardErrorStopsImmediately(t *testing.T) {
 func TestWaitForConsistency_NeverConsistentTimesOut(t *testing.T) {
 	withFastConsistencyPolling(t)
 
-	_, err := waitForConsistency(context.Background(), "widget \"a\"", func() (string, bool, error) {
+	_, err := waitForConsistency(context.Background(), nil, "widget \"a\"", func() (string, bool, error) {
 		return "stale", false, nil
 	})
 
@@ -115,7 +115,7 @@ func TestSearchByNameUntilStable_StabilizesOnSameIDs(t *testing.T) {
 	withFastConsistencyPolling(t)
 
 	calls := 0
-	items, matchCount, hardErr, err := searchByNameUntilStable(context.Background(), "widget", sequenceSearch(&calls, []string{"a"}), idOfString)
+	items, matchCount, hardErr, err := searchByNameUntilStable(context.Background(), nil, "widget", sequenceSearch(&calls, []string{"a"}), idOfString)
 
 	if err != nil || hardErr != nil {
 		t.Fatalf("unexpected errors: err=%v hardErr=%v", err, hardErr)
@@ -135,7 +135,7 @@ func TestSearchByNameUntilStable_ReorderedResultsAreStable(t *testing.T) {
 	withFastConsistencyPolling(t)
 
 	calls := 0
-	_, matchCount, _, err := searchByNameUntilStable(context.Background(), "widget",
+	_, matchCount, _, err := searchByNameUntilStable(context.Background(), nil, "widget",
 		sequenceSearch(&calls, []string{"a", "b"}, []string{"b", "a"}), idOfString)
 
 	if err != nil {
@@ -153,7 +153,7 @@ func TestSearchByNameUntilStable_SameCountDifferentIDsIsNotStable(t *testing.T) 
 	withFastConsistencyPolling(t)
 
 	calls := 0
-	items, matchCount, _, err := searchByNameUntilStable(context.Background(), "widget",
+	items, matchCount, _, err := searchByNameUntilStable(context.Background(), nil, "widget",
 		sequenceSearch(&calls, []string{"a"}, []string{"b"}, []string{"b"}), idOfString)
 
 	if err != nil {
@@ -175,7 +175,7 @@ func TestSearchByNameUntilStable_ZeroResultsTimesOutAsNotFound(t *testing.T) {
 	consistencyPolling.Timeout = 300 * time.Millisecond
 
 	calls := 0
-	_, matchCount, hardErr, err := searchByNameUntilStable(context.Background(), "widget", sequenceSearch(&calls, []string{}), idOfString)
+	_, matchCount, hardErr, err := searchByNameUntilStable(context.Background(), nil, "widget", sequenceSearch(&calls, []string{}), idOfString)
 
 	if err == nil {
 		t.Fatal("expected a timeout error, got nil")
@@ -197,7 +197,7 @@ func TestSearchByNameUntilStable_UnstablePositiveCountTimesOut(t *testing.T) {
 		n++
 		return []string{fmt.Sprintf("id-%d", n)}, nil
 	}
-	_, matchCount, hardErr, err := searchByNameUntilStable(context.Background(), "widget", search, idOfString)
+	_, matchCount, hardErr, err := searchByNameUntilStable(context.Background(), nil, "widget", search, idOfString)
 
 	if err == nil {
 		t.Fatal("expected a timeout error, got nil")
@@ -215,7 +215,7 @@ func TestSearchByNameUntilStable_HardErrorIsReported(t *testing.T) {
 
 	wantErr := errors.New("boom")
 	calls := 0
-	_, matchCount, hardErr, err := searchByNameUntilStable(context.Background(), "widget",
+	_, matchCount, hardErr, err := searchByNameUntilStable(context.Background(), nil, "widget",
 		func() ([]string, error) {
 			calls++
 			return nil, wantErr
@@ -242,7 +242,7 @@ func TestSearchByNameUntilStable_CancellationBeforeFirstPoll(t *testing.T) {
 	cancel()
 
 	calls := 0
-	_, matchCount, hardErr, err := searchByNameUntilStable(ctx, "widget", sequenceSearch(&calls, []string{"a"}), idOfString)
+	_, matchCount, hardErr, err := searchByNameUntilStable(ctx, nil, "widget", sequenceSearch(&calls, []string{"a"}), idOfString)
 
 	if err == nil {
 		t.Fatal("expected a cancellation error, got nil")

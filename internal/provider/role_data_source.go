@@ -113,7 +113,7 @@ func (d *RoleDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	// uniqueness-guaranteed lookup available from this API to close it completely. The
 	// request body is re-marshaled and a fresh reader constructed on every attempt, since
 	// an io.Reader can't be replayed after being consumed by a previous attempt.
-	items, matchCount, hardErr, err := searchByNameUntilStable(ctx, fmt.Sprintf("role named %q", name),
+	items, matchCount, hardErr, err := searchByNameUntilStable(ctx, d.client, fmt.Sprintf("role named %q", name),
 		func() ([]camunda.RoleResult, error) {
 			filterReq := roleSearchByNameRequest{}
 			filterReq.Filter.Name = name
@@ -166,7 +166,7 @@ func (d *RoleDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	// The by-ID GET is a separate eventually consistent projection from the name search, so
 	// during a rename it can already report the new name for an ID the search still returns
 	// for the old one. Poll until the fetched role actually carries the requested name.
-	readResp, err := readUntilConsistent(ctx, fmt.Sprintf("role named %q", name),
+	readResp, err := readUntilConsistent(ctx, d.client, fmt.Sprintf("role named %q", name),
 		func() (*camunda.GetRoleResponse, error) {
 			return readRoleWithRetry(ctx, d.client, items[0].RoleId)
 		},

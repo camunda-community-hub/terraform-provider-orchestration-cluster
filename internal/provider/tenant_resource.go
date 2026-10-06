@@ -305,7 +305,7 @@ func (r *TenantResource) ImportState(ctx context.Context, req resource.ImportSta
 // readTenantWithRetry handles the eventual consistency of fetching a tenant by retrying a few times:
 // if a tenant was just created, it may not be immediately available through the API.
 func readTenantWithRetry(ctx context.Context, client *camunda.ClientWithResponses, tenantId string) (*camunda.GetTenantResponse, error) {
-	return readWithRetry(ctx, fmt.Sprintf("tenant %q", tenantId),
+	return readWithRetry(ctx, client, fmt.Sprintf("tenant %q", tenantId),
 		func() (*camunda.GetTenantResponse, error) {
 			return client.GetTenantWithResponse(ctx, tenantId)
 		},
@@ -326,7 +326,7 @@ func readTenantWithRetry(ctx context.Context, client *camunda.ClientWithResponse
 // the read-side projection can briefly return the pre-update values right after a successful
 // PUT, which would otherwise make Terraform's post-apply refresh plan non-empty.
 func readTenantUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, tenantId, expectedName string, expectedDescription *string) (*camunda.GetTenantResponse, error) {
-	return readUntilConsistent(ctx, fmt.Sprintf("tenant %q", tenantId),
+	return readUntilConsistent(ctx, client, fmt.Sprintf("tenant %q", tenantId),
 		func() (*camunda.GetTenantResponse, error) {
 			return client.GetTenantWithResponse(ctx, tenantId)
 		},

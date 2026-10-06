@@ -58,8 +58,7 @@ func TestAccRoleDataSource(t *testing.T) {
 			},
 			// Not found: no role exists with this name.
 			{
-				PreConfig:   shortConsistencyTimeout(t),
-				Config:      providerConfig + testAccRoleDataSourceConfig(`"does-not-exist-role-name"`),
+				Config:      providerConfigShortConsistency + testAccRoleDataSourceConfig(`"does-not-exist-role-name"`),
 				ExpectError: regexp.MustCompile(`No role found with name`),
 			},
 			// Create two roles sharing the same name to exercise the ambiguous path.
@@ -68,9 +67,8 @@ func TestAccRoleDataSource(t *testing.T) {
 			// that is a separate eventually-consistent projection and can be
 			// consistent while search still reflects only one of the two roles.
 			{
-				PreConfig: restoreConsistencyTimeout,
-				Config:    providerConfig + testAccRoleDuplicateNameResourcesConfig("Duplicate Role Name"),
-				Check:     waitForRoleSearchDuplicates("Duplicate Role Name"),
+				Config: providerConfig + testAccRoleDuplicateNameResourcesConfig("Duplicate Role Name"),
+				Check:  waitForRoleSearchDuplicates("Duplicate Role Name"),
 			},
 			// Ambiguous: the name matches more than one role.
 			{
@@ -119,7 +117,7 @@ func waitForRoleSearchDuplicates(name string) resource.TestCheckFunc {
 			return err
 		}
 
-		_, err = waitForConsistency(context.Background(), fmt.Sprintf("role search for name %q to return duplicates", name), func() ([]camunda.RoleResult, bool, error) {
+		_, err = waitForConsistency(context.Background(), nil, fmt.Sprintf("role search for name %q to return duplicates", name), func() ([]camunda.RoleResult, bool, error) {
 			filterReq := roleSearchByNameRequest{}
 			filterReq.Filter.Name = name
 

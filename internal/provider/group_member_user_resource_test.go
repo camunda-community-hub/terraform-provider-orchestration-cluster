@@ -81,7 +81,7 @@ func unassignGroupMemberUserOutOfBand(groupId, userId string) func() {
 		// provider. Wait for the removal to actually be visible before letting
 		// Terraform's own refresh run, or it can still see the (about-to-be-gone)
 		// membership and report an empty plan instead of detecting the drift.
-		if _, err := waitForConsistency(context.Background(), fmt.Sprintf("group %q user %q unassignment", groupId, userId), func() (bool, bool, error) {
+		if _, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("group %q user %q unassignment", groupId, userId), func() (bool, bool, error) {
 			found, err := searchAllGroupUsers(context.Background(), client, groupId, userId)
 			if err != nil {
 				return false, false, err
@@ -127,7 +127,7 @@ func checkGroupUserAssignmentExistsInEngine(groupId, userId string) resource.Tes
 			gid := rs.Primary.Attributes["group_id"]
 			uid := rs.Primary.Attributes["user_id"]
 
-			_, err := waitForConsistency(context.Background(), fmt.Sprintf("user %q in group %q in engine", uid, gid), func() (bool, bool, error) {
+			_, err := waitForConsistency(context.Background(), nil, fmt.Sprintf("user %q in group %q in engine", uid, gid), func() (bool, bool, error) {
 				searchResp, err := client.SearchUsersForGroupWithResponse(context.Background(), gid, camunda.SearchUsersForGroupJSONRequestBody{})
 				if err != nil {
 					return false, false, err
