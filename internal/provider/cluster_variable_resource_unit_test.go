@@ -79,6 +79,11 @@ func TestJsonEquivalent(t *testing.T) {
 		{`"1"`, `1`, false},
 		{`[1,2]`, `[2,1]`, false},
 		{`not json`, `not json`, false},
+		{`{"a":1} {"a":1}`, `{"a":1}`, false},
+		{`9007199254740993`, `9007199254740992`, false},
+		{`9007199254740993`, `9007199254740993.0`, true},
+		{`1e1000`, `1e1000`, true},
+		{`{"a":[1e2]}`, `{"a":[100]}`, true},
 	}
 	for _, tt := range tests {
 		if got := jsonEquivalent(tt.a, tt.b); got != tt.want {

@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"math/big"
 	"net/http"
 	"reflect"
 	"strings"
@@ -411,16 +413,77 @@ func parseClusterVariableValue(body []byte) (string, error) {
 }
 
 // jsonEquivalent reports whether a and b are JSON documents with the same content,
-// ignoring whitespace and object key order.
+// ignoring whitespace and object key order. Numbers are compared at arbitrary precision
+// (1 equals 1.0, but integers above 2^53 that differ stay different).
 func jsonEquivalent(a, b string) bool {
-	var av, bv any
-	if err := json.Unmarshal([]byte(a), &av); err != nil {
+	av, err := decodeJSONNumbers(a)
+	if err != nil {
 		return false
 	}
-	if err := json.Unmarshal([]byte(b), &bv); err != nil {
+	bv, err := decodeJSONNumbers(b)
+	if err != nil {
 		return false
 	}
-	return reflect.DeepEqual(av, bv)
+	return jsonValuesEqual(av, bv)
+}
+
+// decodeJSONNumbers decodes a JSON document, keeping numbers as json.Number.
+func decodeJSONNumbers(s string) (any, error) {
+	dec := json.NewDecoder(strings.NewReader(s))
+	dec.UseNumber()
+
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil, err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, fmt.Errorf("unexpected data after JSON value")
+	}
+	return v, nil
+}
+
+func jsonValuesEqual(a, b any) bool {
+	switch av := a.(type) {
+	case json.Number:
+		bv, ok := b.(json.Number)
+		return ok && jsonNumbersEqual(av, bv)
+	case []any:
+		bv, ok := b.([]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !jsonValuesEqual(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
+	case map[string]any:
+		bv, ok := b.(map[string]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for k, v := range av {
+			other, ok := bv[k]
+			if !ok || !jsonValuesEqual(v, other) {
+				return false
+			}
+		}
+		return true
+	default:
+		return reflect.DeepEqual(a, b)
+	}
+}
+
+// jsonNumbersEqual compares two JSON numbers exactly. Numbers big.Rat cannot represent (such
+// as an absurdly large exponent) fall back to comparing their text.
+func jsonNumbersEqual(a, b json.Number) bool {
+	ar, aok := new(big.Rat).SetString(a.String())
+	br, bok := new(big.Rat).SetString(b.String())
+	if aok && bok {
+		return ar.Cmp(br) == 0
+	}
+	return a == b
 }
 
 // clusterVariableResponse is the status code, raw body and decoded result of a create, get or
