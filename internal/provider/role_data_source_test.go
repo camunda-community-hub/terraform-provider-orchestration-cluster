@@ -58,6 +58,7 @@ func TestAccRoleDataSource(t *testing.T) {
 			},
 			// Not found: no role exists with this name.
 			{
+				PreConfig:   shortConsistencyTimeout(t),
 				Config:      providerConfig + testAccRoleDataSourceConfig(`"does-not-exist-role-name"`),
 				ExpectError: regexp.MustCompile(`No role found with name`),
 			},
@@ -67,8 +68,9 @@ func TestAccRoleDataSource(t *testing.T) {
 			// that is a separate eventually-consistent projection and can be
 			// consistent while search still reflects only one of the two roles.
 			{
-				Config: providerConfig + testAccRoleDuplicateNameResourcesConfig("Duplicate Role Name"),
-				Check:  waitForRoleSearchDuplicates("Duplicate Role Name"),
+				PreConfig: restoreConsistencyTimeout,
+				Config:    providerConfig + testAccRoleDuplicateNameResourcesConfig("Duplicate Role Name"),
+				Check:     waitForRoleSearchDuplicates("Duplicate Role Name"),
 			},
 			// Ambiguous: the name matches more than one role.
 			{
