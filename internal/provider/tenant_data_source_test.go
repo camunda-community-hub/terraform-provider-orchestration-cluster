@@ -63,7 +63,7 @@ func TestAccTenantDataSource(t *testing.T) {
 			},
 			// Not found by name.
 			{
-				Config:      providerConfig + testAccTenantDataSourceConfig(`name = "does-not-exist-tenant-name"`),
+				Config:      providerConfigShortConsistency + testAccTenantDataSourceConfig(`name = "does-not-exist-tenant-name"`),
 				ExpectError: regexp.MustCompile(`No tenant found with name`),
 			},
 			// Create two tenants sharing the same name to exercise the ambiguous path. The check
