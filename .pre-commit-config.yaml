@@ -12,8 +12,8 @@ repos:
 
       - id: generate-docs
         name: make generate (docs and examples)
-        description: Regenerate docs and examples so the CI pre-commit job stays clean. A change to generated files fails the commit; re-add and commit again.
-        entry: make generate
+        description: Regenerate docs and examples so the CI pre-commit job stays clean. A change to generated files, or a new untracked generated file, fails the commit; re-add and commit again.
+        entry: make generate-check
         language: system
         pass_filenames: false
         always_run: true
