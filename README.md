@@ -67,11 +67,28 @@ resource "camundacluster_user" "alice" {
 | `camundacluster_user` | Identity user |
 | `camundacluster_group` | Identity group |
 | `camundacluster_role` | Identity role |
-| `camundacluster_authorization` | Authorization assignment |
-| `camundacluster_client` | OAuth client |
-| `camundacluster_mapping_rule` | Identity mapping rule |
 | `camundacluster_tenant` | Tenant |
-| `camundacluster_cluster_variable` | Cluster variable |
+| `camundacluster_authorization` | Authorization assignment |
+| `camundacluster_mapping_rule` | Identity mapping rule |
+| `camundacluster_cluster_variable` | Cluster variable (global or tenant scoped) |
+| `camundacluster_group_member_user`, `_client`, `_mapping_rule` | Assign a user, client or mapping rule to a group |
+| `camundacluster_role_member_user`, `_client`, `_group`, `_mapping_rule` | Assign a user, client, group or mapping rule to a role |
+| `camundacluster_tenant_member_user`, `_client`, `_group`, `_role`, `_mapping_rule` | Assign a user, client, group, role or mapping rule to a tenant |
+
+The API has no standalone client resource: clients exist only as members of groups, roles and
+tenants, so they are managed through the `*_member_client` resources.
+
+## Data sources
+
+| Data source | Looks up |
+|---|---|
+| `camundacluster_user` | A user by username |
+| `camundacluster_group` | A group by name |
+| `camundacluster_role` | A role by name |
+| `camundacluster_tenant` | A tenant by ID or name |
+| `camundacluster_mapping_rule` | A mapping rule by ID |
+| `camundacluster_authorization` | An authorization by key |
+| `camundacluster_cluster_topology` | The cluster topology |
 
 ## Eventual consistency
 
