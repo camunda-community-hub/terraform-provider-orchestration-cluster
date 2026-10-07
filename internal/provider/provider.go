@@ -9,10 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
-	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -26,9 +23,6 @@ import (
 
 // Ensure CamundaClusterProvider satisfies various provider interfaces.
 var _ provider.Provider = &CamundaClusterProvider{}
-var _ provider.ProviderWithFunctions = &CamundaClusterProvider{}
-var _ provider.ProviderWithEphemeralResources = &CamundaClusterProvider{}
-var _ provider.ProviderWithActions = &CamundaClusterProvider{}
 
 // CamundaClusterProvider defines the provider implementation.
 type CamundaClusterProvider struct {
@@ -237,7 +231,6 @@ func getAuthToken(loginUrl, audience, clientID, clientSecret string) (string, er
 
 func (p *CamundaClusterProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewExampleResource,
 		NewMappingRuleResource,
 		NewUserResource,
 		NewTenantResource,
@@ -260,15 +253,8 @@ func (p *CamundaClusterProvider) Resources(ctx context.Context) []func() resourc
 	}
 }
 
-func (p *CamundaClusterProvider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
-	return []func() ephemeral.EphemeralResource{
-		NewExampleEphemeralResource,
-	}
-}
-
 func (p *CamundaClusterProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewExampleDataSource,
 		NewClusterTopologyDataSource,
 		NewUserDataSource,
 		NewGroupDataSource,
@@ -276,18 +262,6 @@ func (p *CamundaClusterProvider) DataSources(ctx context.Context) []func() datas
 		NewAuthorizationDataSource,
 		NewRoleDataSource,
 		NewTenantDataSource,
-	}
-}
-
-func (p *CamundaClusterProvider) Functions(ctx context.Context) []func() function.Function {
-	return []func() function.Function{
-		NewExampleFunction,
-	}
-}
-
-func (p *CamundaClusterProvider) Actions(ctx context.Context) []func() action.Action {
-	return []func() action.Action{
-		NewExampleAction,
 	}
 }
 
