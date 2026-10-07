@@ -80,7 +80,7 @@ The provider is published as `camunda-community-hub/orchestration-cluster`
 ### One-time setup (repository or organization admin)
 
 1. **License:** `LICENSE` (Apache 2.0) must be present on the default branch.
-2. **Visibility:** the repository must be public. The public registry only lists public GitHub repositories.
+2. **Visibility:** the repository is public, which the registry requires: the public registry only lists public GitHub repositories. Keep it public.
 3. **Signing key:** generate a dedicated GPG key for release signing and keep the private key out of the repository.
    ```
    gpg --full-generate-key
