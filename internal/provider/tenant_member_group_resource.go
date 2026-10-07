@@ -5,7 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 
-	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
 var tenantMemberGroup = membershipDef{

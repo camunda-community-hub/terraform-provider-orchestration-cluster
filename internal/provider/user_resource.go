@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.

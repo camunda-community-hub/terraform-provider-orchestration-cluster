@@ -14,7 +14,7 @@ import (
 	tfresource "github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 
-	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
 // membershipLifecycleDefs lists every membership resource covered by the shared replacement,
