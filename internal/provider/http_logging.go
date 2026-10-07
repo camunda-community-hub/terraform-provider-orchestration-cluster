@@ -11,7 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
 // sensitiveHeaders lists request/response headers whose values must never be

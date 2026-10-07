@@ -26,7 +26,7 @@ make build
    provider_installation {
 
      dev_overrides {
-         "camunda.com/camunda/camunda-cluster" = "<output of go env GOBIN>"
+         "registry.terraform.io/camunda-community-hub/orchestration-cluster" = "<output of go env GOBIN>"
      }
 
      # Keep this for normal providers.

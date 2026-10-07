@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	camunda "github.com/camunda/terraform-provider-camunda-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
 func readClusterTopology(t *testing.T, status int, body string) (*datasource.ReadResponse, ClusterTopologyDataSourceModel) {

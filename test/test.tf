@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     camundacluster = {
-      source = "camunda.com/camunda/camunda-cluster"
+      source = "registry.terraform.io/camunda-community-hub/orchestration-cluster"
     }
   }
 }

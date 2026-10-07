@@ -1,4 +1,4 @@
-module github.com/camunda/terraform-provider-camunda-cluster
+module github.com/camunda-community-hub/terraform-provider-orchestration-cluster
 
 go 1.25.8
 

@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/camunda/terraform-provider-camunda-cluster/internal/provider"
+	"github.com/camunda-community-hub/terraform-provider-orchestration-cluster/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
@@ -25,10 +25,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		// TODO: Update this string with the published name of your provider.
-		// Also update the tfplugindocs generate command to either remove the
-		// -provider-name flag or set its value to the updated provider name.
-		Address: "registry.terraform.io/camunda/cluster",
+		Address: "registry.terraform.io/camunda-community-hub/orchestration-cluster",
 		Debug:   debug,
 	}
 
