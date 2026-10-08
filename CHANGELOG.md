@@ -1,4 +1,4 @@
-## 0.1.0 (Unreleased)
+## 0.1.0 (October 8, 2026)
 
 First release. This is a `0.x` version: the resource and data source surface may still change
 based on feedback before a 1.0 compatibility commitment.
