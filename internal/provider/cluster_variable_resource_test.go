@@ -124,6 +124,10 @@ func TestAccClusterVariableResource_lifecycle(t *testing.T) {
 		deleteInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
 			return deleteClusterVariable(ctx, client, nil, id)
 		},
+		getInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
+			resp, err := getClusterVariable(ctx, client, nil, id)
+			return resp.Status, err
+		},
 	})
 }
 

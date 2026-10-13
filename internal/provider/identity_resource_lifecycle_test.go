@@ -24,6 +24,10 @@ type identityLifecycleCase struct {
 	// deleteInEngine removes the object with the given ID directly through the API,
 	// bypassing Terraform, and returns the HTTP status code.
 	deleteInEngine func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error)
+
+	// getInEngine reads the object with the given ID through the same GET endpoint the
+	// resource's Read uses, and returns the HTTP status code.
+	getInEngine func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error)
 }
 
 // runIdentityLifecycleTest verifies drift detection and ID replacement.
@@ -62,9 +66,9 @@ func runIdentityLifecycleTest(t *testing.T, tc identityLifecycleCase) {
 	})
 }
 
-// testDeleteOutOfBand deletes the object through the API, then repeats the delete
-// until the API reports 404, because reads are eventually consistent and Terraform's
-// refresh must not see a stale 200.
+// testDeleteOutOfBand deletes the object through the API, then waits until the GET the
+// resource's Read uses reports it gone. DELETE is strongly consistent but GET is not, so
+// waiting on DELETE alone lets Terraform's refresh see a stale 200 and plan a no-op.
 func testDeleteOutOfBand(t *testing.T, tc identityLifecycleCase, id string) {
 	t.Helper()
 	client, err := camunda.NewClientWithResponses(testClusterURL)
@@ -78,11 +82,36 @@ func testDeleteOutOfBand(t *testing.T, tc identityLifecycleCase, id string) {
 	if status != http.StatusNoContent {
 		t.Fatalf("deleting %s out-of-band: unexpected HTTP status %d", id, status)
 	}
-	_, err = waitForConsistency(t.Context(), nil, fmt.Sprintf("%s deletion", id), func() (int, bool, error) {
-		status, err := tc.deleteInEngine(t.Context(), client, id)
-		return status, status == http.StatusNotFound, err
+	err = waitUntilGoneConsecutively(t.Context(), fmt.Sprintf("%s deletion", id), func() (bool, error) {
+		status, err := tc.getInEngine(t.Context(), client, id)
+		return status == http.StatusNotFound, err
 	})
 	if err != nil {
 		t.Fatalf("waiting for out-of-band deletion of %s: %s", id, err)
 	}
+}
+
+// goneObservationsRequired is how many consecutive reads must report an object gone before
+// an out-of-band removal counts as visible. A single observation can be a projection
+// flapping between its old and new state.
+const goneObservationsRequired = 2
+
+// waitUntilGoneConsecutively polls gone, which performs the same read the provider uses
+// (a GET by ID or a membership search), until it reports true goneObservationsRequired
+// times in a row. Any read that still sees the object resets the count.
+func waitUntilGoneConsecutively(ctx context.Context, subject string, gone func() (bool, error)) error {
+	consecutive := 0
+	_, err := waitForConsistency(ctx, nil, subject, func() (bool, bool, error) {
+		isGone, err := gone()
+		if err != nil {
+			return false, false, err
+		}
+		if isGone {
+			consecutive++
+		} else {
+			consecutive = 0
+		}
+		return isGone, consecutive >= goneObservationsRequired, nil
+	})
+	return err
 }

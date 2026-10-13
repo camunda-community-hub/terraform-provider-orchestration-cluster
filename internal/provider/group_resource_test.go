@@ -139,5 +139,12 @@ func TestAccGroupResource_DriftAndReplace(t *testing.T) {
 			}
 			return resp.StatusCode(), nil
 		},
+		getInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
+			resp, err := client.GetGroupWithResponse(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			return resp.StatusCode(), nil
+		},
 	})
 }
