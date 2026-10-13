@@ -52,59 +52,27 @@ jobs:
     outputs:
       version: ${{ steps.next.outputs.version }}
     steps:
-      - name: Require the default branch
-        run: |
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::Releases can only be started from main, not from $GITHUB_REF."
-            exit 1
-          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The tags are needed to find the latest version.
           fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      # The steps below are in .github/scripts/release (see its doc comment and tests).
+      - name: Require the default branch
+        run: go run ./.github/scripts/release require-main
       - name: Compute the next version
         id: next
         env:
           RELEASE_TYPE: ${{ inputs.release_type }}
-        run: |
-          set -euo pipefail
-
-          latest=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
-          latest=${latest:-v0.0.0}
-
-          IFS=. read -r major minor patch <<<"${latest#v}"
-          case "$RELEASE_TYPE" in
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            patch) patch=$((patch + 1)) ;;
-            *) echo "::error::Unknown release type '$RELEASE_TYPE'."; exit 1 ;;
-          esac
-          next="v${major}.${minor}.${patch}"
-
-          if git rev-parse -q --verify "refs/tags/$next" >/dev/null; then
-            echo "::error::Tag $next already exists."
-            exit 1
-          fi
-
-          echo "version=$next" >> "$GITHUB_OUTPUT"
-          {
-            echo "### Release $next"
-            echo
-            echo "- Latest tag: \`$latest\`"
-            echo "- Release type: \`$RELEASE_TYPE\`"
-            echo "- Commit: \`$GITHUB_SHA\`"
-            echo "- Dry run: \`${{ inputs.dry_run }}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: go run ./.github/scripts/release next-version
       - name: Require a dated changelog entry
         env:
           VERSION: ${{ steps.next.outputs.version }}
-        run: |
-          set -euo pipefail
-          # The release archives ship CHANGELOG.md, so the entry must exist and be dated.
-          if ! grep -Eq "^## ${VERSION#v} \([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4}\)$" CHANGELOG.md; then
-            echo "::error::CHANGELOG.md needs a dated heading for ${VERSION#v}, for example '## ${VERSION#v} (October 13, 2026)'."
-            exit 1
-          fi
+        run: go run ./.github/scripts/release check-changelog
 
   ci:
     name: CI
@@ -129,31 +97,15 @@ jobs:
           ref: ${{ github.sha }}
           # Allow goreleaser to access older tag information.
           fetch-depth: 0
-      - name: Create and push the tag
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          set -euo pipefail
-          # Re-running this job after a later step failed finds the tag from the first attempt.
-          # Reuse it only if it points at the commit this run is releasing.
-          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
-            existing=$(git rev-list -n 1 "refs/tags/$VERSION")
-            if [ "$existing" != "$GITHUB_SHA" ]; then
-              echo "::error::Tag $VERSION already exists on $existing, not on $GITHUB_SHA."
-              exit 1
-            fi
-            echo "Tag $VERSION already points at $GITHUB_SHA, reusing it."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$VERSION" -m "$VERSION" "$GITHUB_SHA"
-            git push origin "refs/tags/$VERSION"
-          fi
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: 'go.mod'
           cache: true
+      - name: Create and push the tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: go run ./.github/scripts/release create-tag
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
         id: import_gpg

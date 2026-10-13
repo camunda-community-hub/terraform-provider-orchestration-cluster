@@ -29,6 +29,11 @@ jobs:
           cache: true
       - run: go mod download
       - run: go build -v .
+      # ./... skips directories whose name starts with a dot, so the release scripts need their own step.
+      - name: Test the release scripts
+        run: |
+          go vet ./.github/scripts/...
+          go test ./.github/scripts/...
       - name: Run linters
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
