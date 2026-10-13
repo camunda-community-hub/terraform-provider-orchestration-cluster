@@ -6,7 +6,7 @@ BREAKING CHANGES:
 
 NOTES:
 
-* Users of 0.1.0 and 0.1.1 must update their configuration (resource and data source types, `provider` blocks, `provider = ...` references and `required_providers`). Existing state must be migrated, for example with `terraform state replace-provider` plus `terraform state mv` for each resource, or the resources must be recreated.
+* Users of 0.1.0 and 0.1.1 must update their configuration (resource and data source types, `provider` blocks, `provider = ...` references and `required_providers`). Existing state must be migrated, for example with `terraform state mv` for each resource (state records the provider by its registry source, which is unchanged, so `terraform state replace-provider` should not be needed), or the resources must be recreated. This migration path has not been tested.
 
 ## 0.1.0 (Unreleased)
 
