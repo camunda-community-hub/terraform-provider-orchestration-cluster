@@ -81,14 +81,9 @@ The provider is published as `camunda-community-hub/orchestration-cluster`
 
 1. **License:** `LICENSE` (Apache 2.0) must be present on the default branch.
 2. **Visibility:** the repository is public, which the registry requires: the public registry only lists public GitHub repositories. Keep it public.
-3. **Signing key:** generate a dedicated GPG key for release signing and keep the private key out of the repository.
-   ```
-   gpg --full-generate-key
-   gpg --armor --export-secret-keys <key-id>   # value for GPG_PRIVATE_KEY
-   gpg --armor --export <key-id>               # public key for the registry
-   ```
-4. **Repository secrets:** add `GPG_PRIVATE_KEY` (the armored private key) and `PASSPHRASE` (its passphrase). `release.yml` imports the key and passes its fingerprint to GoReleaser as `GPG_FINGERPRINT`.
-5. **Registry:** sign in to [registry.terraform.io](https://registry.terraform.io) with GitHub, authorize the `camunda-community-hub` organization, add the armored **public** key under the organization's signing keys, and publish this repository as a provider. After that, new `v*` releases are ingested automatically.
+3. **Signing key:** the release signing key is issued from the central key source, not generated per repository. Do not create a key for this repository, and keep the private key out of the repository.
+4. **Repository secrets:** set `GPG_PRIVATE_KEY` (the armored private key) and `PASSPHRASE` (its passphrase) from the key you were issued. `release.yml` imports the key and passes its fingerprint to GoReleaser as `GPG_FINGERPRINT`.
+5. **Registry:** the matching public key has to be registered for the `camunda-community-hub` namespace on [registry.terraform.io](https://registry.terraform.io), which needs an organization admin. The provider is published once through the registry's Publish > Provider page; after that, new releases are ingested automatically.
 
 ### Cutting a release
 
@@ -96,6 +91,12 @@ The provider is published as `camunda-community-hub/orchestration-cluster`
 2. Go to Actions > Release > Run workflow, keep the branch `main`, and choose the release type: `patch`, `minor` or `major`. The workflow bumps the latest `v*` tag accordingly (for example `v0.2.0` becomes `v0.2.1`, `v0.3.0` or `v1.0.0`). While the project is `0.x`, breaking changes go into a `minor` release. Tick `dry_run` first if you want to see the computed version and have the preconditions checked without releasing anything.
 3. The workflow then runs the full CI on the commit, creates the annotated tag, and builds, signs and publishes the release. It stops at the first failing step. If a flaky test fails the CI, run the workflow again.
 4. Check that the `Release` workflow succeeded, that the GitHub release has the signed checksums and the `*_manifest.json`, and that `terraform init` downloads the new version from the registry.
+
+The steps of the workflow (checking the branch, computing the version, checking the changelog, creating the tag) are a small Go program in `.github/scripts/release`, not inline shell. It has unit tests, including tests against scratch git repositories, which CI runs with `go test ./.github/scripts/...` (a plain `go test ./...` skips directories that start with a dot). To see what version a release type would produce, run it from the repository root; it prints the result and does not change anything:
+
+```
+RELEASE_TYPE=minor go run ./.github/scripts/release next-version
+```
 
 Pushing a `v*` tag by hand still works and goes straight to building and publishing, without the CI run and the checks above.
 
