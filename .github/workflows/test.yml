@@ -8,6 +8,8 @@ on:
   push:
     branches:
       - main
+  # Lets the release workflow run the full CI on the commit it is about to release.
+  workflow_call:
 
 # Testing only needs permissions to read the repository contents.
 permissions:

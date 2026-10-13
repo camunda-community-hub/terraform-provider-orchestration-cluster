@@ -1,9 +1,35 @@
 # Terraform Provider release workflow.
 name: Release
 
-# This GitHub action creates a release when a tag that matches the pattern
-# "v*" (e.g. v0.1.0) is created.
+# There are two ways to release:
+#
+# 1. Run this workflow manually (Actions > Release > Run workflow) from the default branch and
+#    choose the kind of release. It computes the next version from the latest v* tag, runs the
+#    full CI on the commit, creates the tag, and then builds, signs and publishes the release.
+#
+# 2. Push a tag that matches the pattern "v*" (e.g. v0.1.0). This skips the steps above and
+#    goes straight to building and publishing.
+#
+# The tag created by (1) is pushed with the default GITHUB_TOKEN, and pushes made with that
+# token do not start other workflow runs. That is intentional: the release job below runs in
+# the same workflow run, so nothing is released twice. Do not replace the token with a personal
+# access token, as that would start a second release run for the same tag.
 on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Version bump applied to the latest v* tag'
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Only compute the version and check the preconditions: no CI run, no tag, no release'
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*'
@@ -13,14 +39,106 @@ on:
 permissions:
   contents: write
 
+# Never run two releases at the same time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  goreleaser:
+  prepare:
+    name: Compute version
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - name: Require the default branch
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Releases can only be started from main, not from $GITHUB_REF."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tags are needed to find the latest version.
+          fetch-depth: 0
+      - name: Compute the next version
+        id: next
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        run: |
+          set -euo pipefail
+
+          latest=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+          latest=${latest:-v0.0.0}
+
+          IFS=. read -r major minor patch <<<"${latest#v}"
+          case "$RELEASE_TYPE" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+            *) echo "::error::Unknown release type '$RELEASE_TYPE'."; exit 1 ;;
+          esac
+          next="v${major}.${minor}.${patch}"
+
+          if git rev-parse -q --verify "refs/tags/$next" >/dev/null; then
+            echo "::error::Tag $next already exists."
+            exit 1
+          fi
+
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release $next"
+            echo
+            echo "- Latest tag: \`$latest\`"
+            echo "- Release type: \`$RELEASE_TYPE\`"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Dry run: \`${{ inputs.dry_run }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Require a dated changelog entry
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          set -euo pipefail
+          # The release archives ship CHANGELOG.md, so the entry must exist and be dated.
+          if ! grep -Eq "^## ${VERSION#v} \([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4}\)$" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md needs a dated heading for ${VERSION#v}, for example '## ${VERSION#v} (October 13, 2026)'."
+            exit 1
+          fi
+
+  ci:
+    name: CI
+    needs: prepare
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+    uses: ./.github/workflows/test.yml
+
+  release:
+    name: Release
+    needs: [prepare, ci]
+    # Tag pushes run this job directly. Manual runs need the checks and the CI to have passed.
+    if: >-
+      ${{ always() && (
+        github.event_name == 'push' ||
+        (needs.prepare.result == 'success' && needs.ci.result == 'success')
+      ) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The commit the CI ran on, not whatever main points to by now.
+          ref: ${{ github.sha }}
           # Allow goreleaser to access older tag information.
           fetch-depth: 0
+      - name: Create and push the tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "$VERSION" "$GITHUB_SHA"
+          git push origin "refs/tags/$VERSION"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: 'go.mod'
