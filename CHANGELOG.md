@@ -13,13 +13,21 @@ NOTES:
   * Caveat: `password` of `orchestration_cluster_user` is not imported, so the first plan wants an in-place update of the user, and a membership that references the user is replaced (destroy and create). Applying that worked and left no further changes. Adding `lifecycle { ignore_changes = [password] }` to the user resource avoided both changes in a plan test.
   * Does not work: `terraform state mv` ("resource types don't match") and a `moved` block ("target resource implementation does not include move resource state support", as the provider has no `MoveState`). Alternatively recreate the resources.
 
-## 0.1.0 (Unreleased)
+## 0.1.1 (October 13, 2026)
+
+NOTES:
+
+* First version published to the Terraform Registry. It is signed with the release key registered for the `camunda-community-hub` namespace.
+* Identical to 0.1.0 apart from a CI dependency update (`goreleaser-action` v7.3.0). There are no provider changes.
+
+## 0.1.0 (October 8, 2026)
 
 First release. This is a `0.x` version: the resource and data source surface may still change
 based on feedback before a 1.0 compatibility commitment.
 
 NOTES:
 
+* Tagged and released on GitHub only. The Terraform Registry could not verify the signature of this version's checksum file, so 0.1.0 is not available from the registry. Use 0.1.1 or later.
 * Targets the Camunda 8.9 orchestration cluster REST API.
 * Eventually consistent reads (`GET` and `/search`) are handled by polling with a bounded timeout, 30 seconds by default, configurable with the provider's `consistency_timeout` attribute.
 
