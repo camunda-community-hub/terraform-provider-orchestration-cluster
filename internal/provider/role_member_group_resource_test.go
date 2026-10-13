@@ -24,7 +24,7 @@ func TestAccRoleMemberGroupResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_role_member_group.test",
+				ResourceName:      "orchestration_cluster_role_member_group.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -95,19 +95,19 @@ func unassignRoleMemberGroupOutOfBand(roleId, groupId string) func() {
 
 func testAccRoleMemberGroupResourceConfig() string {
 	return `
-resource "camundacluster_role" "rolemembergrouprole" {
+resource "orchestration_cluster_role" "rolemembergrouprole" {
   role_id = "rolemembergrouprole"
   name    = "rolemembergrouprole"
 }
 
-resource "camundacluster_group" "rolemembertestgroup" {
+resource "orchestration_cluster_group" "rolemembertestgroup" {
   group_id = "rolemembertestgroup"
   name     = "rolemembertestgroup"
 }
 
-resource "camundacluster_role_member_group" "test" {
-  role_id  = camundacluster_role.rolemembergrouprole.id
-  group_id = camundacluster_group.rolemembertestgroup.id
+resource "orchestration_cluster_role_member_group" "test" {
+  role_id  = orchestration_cluster_role.rolemembergrouprole.id
+  group_id = orchestration_cluster_group.rolemembertestgroup.id
 }
 `
 }
@@ -119,7 +119,7 @@ func checkRoleGroupAssignmentExistsInEngine() resource.TestCheckFunc {
 			return err
 		}
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type != "camundacluster_role_member_group" {
+			if rs.Type != "orchestration_cluster_role_member_group" {
 				continue
 			}
 			rid := rs.Primary.Attributes["role_id"]

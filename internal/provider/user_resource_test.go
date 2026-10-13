@@ -31,12 +31,12 @@ func TestAccUserResource(t *testing.T) {
 				Config: providerConfig + testAccUserResourceConfig("user1", "Foo Bar"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_user.test",
+						"orchestration_cluster_user.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("user1"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_user.test",
+						"orchestration_cluster_user.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Foo Bar"),
 					),
@@ -44,7 +44,7 @@ func TestAccUserResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_user.test",
+				ResourceName:      "orchestration_cluster_user.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateVerifyIgnore: []string{
@@ -57,12 +57,12 @@ func TestAccUserResource(t *testing.T) {
 				Config: providerConfig + testAccUserResourceConfig("user2", "Plop Plip"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_user.test",
+						"orchestration_cluster_user.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("user2"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_user.test",
+						"orchestration_cluster_user.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Plop Plip"),
 					),
@@ -75,7 +75,7 @@ func TestAccUserResource(t *testing.T) {
 
 func testAccUserResourceConfig(username, name string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_user" "test" {
+resource "orchestration_cluster_user" "test" {
   username = "%s"
   name     = "%s"
   email    = "%s@example.com"
@@ -86,7 +86,7 @@ resource "camundacluster_user" "test" {
 
 func testAccUserResourceMinimalConfig(username string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_user" "test" {
+resource "orchestration_cluster_user" "test" {
   username = %q
   password = "test123-%s"
 }
@@ -95,7 +95,7 @@ resource "camundacluster_user" "test" {
 
 func testAccUserResourceFullConfig(username, name, email, password string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_user" "test" {
+resource "orchestration_cluster_user" "test" {
   username = %q
   name     = %q
   email    = %q
@@ -105,7 +105,7 @@ resource "camundacluster_user" "test" {
 }
 
 func TestAccUserResource_optionalNameAndEmailInPlaceUpdate(t *testing.T) {
-	const addr = "camundacluster_user.test"
+	const addr = "orchestration_cluster_user.test"
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -159,7 +159,7 @@ func TestAccUserResource_optionalNameAndEmailInPlaceUpdate(t *testing.T) {
 }
 
 func TestAccUserResource_usernameChangeForcesReplace(t *testing.T) {
-	const addr = "camundacluster_user.test"
+	const addr = "orchestration_cluster_user.test"
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -184,7 +184,7 @@ func TestAccUserResource_usernameChangeForcesReplace(t *testing.T) {
 }
 
 func TestAccUserResource_driftOutOfBandDelete(t *testing.T) {
-	const addr = "camundacluster_user.test"
+	const addr = "orchestration_cluster_user.test"
 	config := providerConfig + testAccUserResourceConfig("user-drift", "Foo Bar")
 
 	resource.Test(t, resource.TestCase{

@@ -20,22 +20,22 @@ func TestAccUserDataSource(t *testing.T) {
 				Config: providerConfig + testAccUserDataSourceConfig,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_user.demo",
+						"data.orchestration_cluster_user.demo",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("demo"),
 					),
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_user.demo",
+						"data.orchestration_cluster_user.demo",
 						tfjsonpath.New("username"),
 						knownvalue.StringExact("demo"),
 					),
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_user.demo",
+						"data.orchestration_cluster_user.demo",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Demo User"),
 					),
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_user.demo",
+						"data.orchestration_cluster_user.demo",
 						tfjsonpath.New("email"),
 						knownvalue.StringExact("demo@demo.com"),
 					),
@@ -52,7 +52,7 @@ func TestAccUserDataSource_NotFound(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: providerConfig + `
-data "camundacluster_user" "missing" {
+data "orchestration_cluster_user" "missing" {
   username = "does-not-exist-user"
 }
 `,
@@ -63,7 +63,7 @@ data "camundacluster_user" "missing" {
 }
 
 const testAccUserDataSourceConfig = `
-data "camundacluster_user" "demo" {
+data "orchestration_cluster_user" "demo" {
   username = "demo"
 }
 `

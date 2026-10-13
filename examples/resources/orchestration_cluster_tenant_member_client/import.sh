@@ -1,0 +1,1 @@
+terraform import orchestration_cluster_tenant_member_client.ci acme/ci-pipeline

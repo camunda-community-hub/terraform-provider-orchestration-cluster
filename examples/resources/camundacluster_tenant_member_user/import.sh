@@ -1,1 +1,0 @@
-terraform import camundacluster_tenant_member_user.alice acme/alice

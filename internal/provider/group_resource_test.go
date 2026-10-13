@@ -25,7 +25,7 @@ func TestAccGroupResource(t *testing.T) {
 				Config: providerConfig + testAccGroupResourceConfig("test-group-1", "Test Group 1", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_group.test",
+						"orchestration_cluster_group.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Test Group 1"),
 					),
@@ -34,7 +34,7 @@ func TestAccGroupResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_group.test",
+				ResourceName:      "orchestration_cluster_group.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -43,12 +43,12 @@ func TestAccGroupResource(t *testing.T) {
 				Config: providerConfig + testAccGroupResourceConfig("test-group-1", "Test Group 2", "A description"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_group.test",
+						"orchestration_cluster_group.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Test Group 2"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_group.test",
+						"orchestration_cluster_group.test",
 						tfjsonpath.New("description"),
 						knownvalue.StringExact("A description"),
 					),
@@ -61,7 +61,7 @@ func TestAccGroupResource(t *testing.T) {
 				Config: providerConfig + testAccGroupResourceConfig("test-group-1", "Test Group 2", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_group.test",
+						"orchestration_cluster_group.test",
 						tfjsonpath.New("description"),
 						knownvalue.Null(),
 					),
@@ -75,14 +75,14 @@ func TestAccGroupResource(t *testing.T) {
 func testAccGroupResourceConfig(groupId, name, description string) string {
 	if description == "" {
 		return fmt.Sprintf(`
-resource "camundacluster_group" "test" {
+resource "orchestration_cluster_group" "test" {
   group_id = %q
   name     = %q
 }
 `, groupId, name)
 	}
 	return fmt.Sprintf(`
-resource "camundacluster_group" "test" {
+resource "orchestration_cluster_group" "test" {
   group_id    = %q
   name        = %q
   description = %q
@@ -97,7 +97,7 @@ func checkGroupExistsInEngine(groupName string) resource.TestCheckFunc {
 			return err
 		}
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type != "camundacluster_group" {
+			if rs.Type != "orchestration_cluster_group" {
 				continue
 			}
 			groupId := rs.Primary.ID
@@ -130,7 +130,7 @@ func checkGroupExistsInEngine(groupName string) resource.TestCheckFunc {
 
 func TestAccGroupResource_DriftAndReplace(t *testing.T) {
 	runIdentityLifecycleTest(t, identityLifecycleCase{
-		address: "camundacluster_group.test",
+		address: "orchestration_cluster_group.test",
 		config:  func(id string) string { return testAccGroupResourceConfig(id, "Lifecycle Group", "") },
 		deleteInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
 			resp, err := client.DeleteGroupWithResponse(ctx, id)

@@ -56,7 +56,7 @@ type CamundaClusterProviderModel struct {
 }
 
 func (p *CamundaClusterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "camundacluster"
+	resp.TypeName = "orchestration_cluster"
 	resp.Version = p.version
 }
 

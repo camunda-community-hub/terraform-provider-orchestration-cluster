@@ -1,1 +1,0 @@
-terraform import camundacluster_tenant_member_role.deployer acme/deployer

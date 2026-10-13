@@ -1,4 +1,12 @@
-provider "camundacluster" {
+terraform {
+  required_providers {
+    orchestration = {
+      source = "camunda-community-hub/orchestration-cluster"
+    }
+  }
+}
+
+provider "orchestration" {
   url = "https://cluster.example.com/v2"
 
   # Optional: how long to wait for the eventually consistent read side (default 30s).

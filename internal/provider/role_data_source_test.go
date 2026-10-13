@@ -18,7 +18,7 @@ import (
 	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
-// TestAccRoleDataSource covers the camundacluster_role data source: the raw
+// TestAccRoleDataSource covers the orchestration_cluster_role data source: the raw
 // name-search request and returned fields on a successful lookup, the
 // zero-match "Not Found" diagnostic, and the multiple-match "Ambiguous
 // Lookup" diagnostic.
@@ -42,15 +42,15 @@ func TestAccRoleDataSource(t *testing.T) {
 			{
 				Config: providerConfig +
 					testAccRoleResourceConfig("test-role-ds-lookup", "DS Lookup Role", "A description for the data source lookup") +
-					testAccRoleDataSourceConfig("camundacluster_role.test.name"),
+					testAccRoleDataSourceConfig("orchestration_cluster_role.test.name"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_role.test",
+						"data.orchestration_cluster_role.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("test-role-ds-lookup"),
 					),
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_role.test",
+						"data.orchestration_cluster_role.test",
 						tfjsonpath.New("description"),
 						knownvalue.StringExact("A description for the data source lookup"),
 					),
@@ -83,7 +83,7 @@ func TestAccRoleDataSource(t *testing.T) {
 
 func testAccRoleDataSourceConfig(nameExpr string) string {
 	return fmt.Sprintf(`
-data "camundacluster_role" "test" {
+data "orchestration_cluster_role" "test" {
   name = %s
 }
 `, nameExpr)
@@ -91,12 +91,12 @@ data "camundacluster_role" "test" {
 
 func testAccRoleDuplicateNameResourcesConfig(name string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_role" "dup_a" {
+resource "orchestration_cluster_role" "dup_a" {
   role_id = "test-role-ds-dup-a"
   name    = %q
 }
 
-resource "camundacluster_role" "dup_b" {
+resource "orchestration_cluster_role" "dup_b" {
   role_id = "test-role-ds-dup-b"
   name    = %q
 }

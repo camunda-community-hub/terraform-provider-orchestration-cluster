@@ -1,3 +1,13 @@
+## 0.2.0 (Unreleased)
+
+BREAKING CHANGES:
+
+* All resource and data source type names changed prefix from `camundacluster_` to `orchestration_cluster_` (for example `camundacluster_user` is now `orchestration_cluster_user`). Because Terraform derives the provider from the type name prefix, the provider local name is now `orchestration`: declare it with `required_providers { orchestration = { source = "camunda-community-hub/orchestration-cluster" } }` and use `provider "orchestration" { ... }`.
+
+NOTES:
+
+* Users of 0.1.0 and 0.1.1 must update their configuration (resource and data source types, `provider` blocks, `provider = ...` references and `required_providers`). Existing state must be migrated, for example with `terraform state replace-provider` plus `terraform state mv` for each resource, or the resources must be recreated.
+
 ## 0.1.0 (Unreleased)
 
 First release. This is a `0.x` version: the resource and data source surface may still change

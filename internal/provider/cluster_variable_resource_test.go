@@ -14,7 +14,7 @@ import (
 	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
-const clusterVariableAddress = "camundacluster_cluster_variable.test"
+const clusterVariableAddress = "orchestration_cluster_cluster_variable.test"
 
 func TestAccClusterVariableResource_global(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -129,7 +129,7 @@ func TestAccClusterVariableResource_lifecycle(t *testing.T) {
 
 func testAccClusterVariableGlobalConfig(name, value string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_cluster_variable" "test" {
+resource "orchestration_cluster_cluster_variable" "test" {
   name  = %q
   value = %s
 }
@@ -138,14 +138,14 @@ resource "camundacluster_cluster_variable" "test" {
 
 func testAccClusterVariableTenantConfig(name, tenantId, value string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_tenant" "test" {
+resource "orchestration_cluster_tenant" "test" {
   tenant_id = %[2]q
   name      = %[2]q
 }
 
-resource "camundacluster_cluster_variable" "test" {
+resource "orchestration_cluster_cluster_variable" "test" {
   name      = %[1]q
-  tenant_id = camundacluster_tenant.test.tenant_id
+  tenant_id = orchestration_cluster_tenant.test.tenant_id
   value     = %[3]s
 }
 `, name, tenantId, value)

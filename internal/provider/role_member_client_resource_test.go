@@ -24,7 +24,7 @@ func TestAccRoleMemberClientResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_role_member_client.test",
+				ResourceName:      "orchestration_cluster_role_member_client.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -95,13 +95,13 @@ func unassignRoleMemberClientOutOfBand(roleId, clientId string) func() {
 
 func testAccRoleMemberClientResourceConfig() string {
 	return `
-resource "camundacluster_role" "rolememberclientrole" {
+resource "orchestration_cluster_role" "rolememberclientrole" {
   role_id = "rolememberclientrole"
   name    = "rolememberclientrole"
 }
 
-resource "camundacluster_role_member_client" "test" {
-  role_id   = camundacluster_role.rolememberclientrole.id
+resource "orchestration_cluster_role_member_client" "test" {
+  role_id   = orchestration_cluster_role.rolememberclientrole.id
   client_id = "test-client-for-role"
 }
 `
@@ -114,7 +114,7 @@ func checkRoleClientAssignmentExistsInEngine() resource.TestCheckFunc {
 			return err
 		}
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type != "camundacluster_role_member_client" {
+			if rs.Type != "orchestration_cluster_role_member_client" {
 				continue
 			}
 			rid := rs.Primary.Attributes["role_id"]

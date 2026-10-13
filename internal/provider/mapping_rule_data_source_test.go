@@ -11,10 +11,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-// TestAccMappingRuleDataSource covers the camundacluster_mapping_rule data source: a
+// TestAccMappingRuleDataSource covers the orchestration_cluster_mapping_rule data source: a
 // successful lookup by ID and the read error for an unknown ID.
 func TestAccMappingRuleDataSource(t *testing.T) {
-	const dataSource = "data.camundacluster_mapping_rule.test"
+	const dataSource = "data.orchestration_cluster_mapping_rule.test"
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -24,7 +24,7 @@ func TestAccMappingRuleDataSource(t *testing.T) {
 			{
 				Config: providerConfig +
 					testAccMappingRuleResourceConfig("test-mapping-rule-ds", "ds-admin", "DS Mapping") +
-					testAccMappingRuleDataSourceConfig("camundacluster_mapping_rule.test.mapping_rule_id"),
+					testAccMappingRuleDataSourceConfig("orchestration_cluster_mapping_rule.test.mapping_rule_id"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(dataSource, tfjsonpath.New("mapping_rule_id"), knownvalue.StringExact("test-mapping-rule-ds")),
 					statecheck.ExpectKnownValue(dataSource, tfjsonpath.New("claim_name"), knownvalue.StringExact("groups")),
@@ -43,7 +43,7 @@ func TestAccMappingRuleDataSource(t *testing.T) {
 
 func testAccMappingRuleDataSourceConfig(idExpr string) string {
 	return fmt.Sprintf(`
-data "camundacluster_mapping_rule" "test" {
+data "orchestration_cluster_mapping_rule" "test" {
   mapping_rule_id = %s
 }
 `, idExpr)

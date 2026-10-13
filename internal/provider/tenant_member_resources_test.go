@@ -27,21 +27,21 @@ var tenantMemberAccCases = []struct {
 		tenantId: "usermembertenant",
 		memberId: "tenantmemberuser1",
 		config: `
-resource "camundacluster_tenant" "t" {
+resource "orchestration_cluster_tenant" "t" {
   tenant_id = "usermembertenant"
   name      = "usermembertenant"
 }
 
-resource "camundacluster_user" "m" {
+resource "orchestration_cluster_user" "m" {
   username = "tenantmemberuser1"
   name     = "Tenant Member User"
   email    = "tenantmemberuser1@example.com"
   password = "testpass123"
 }
 
-resource "camundacluster_tenant_member_user" "test" {
-  tenant_id = camundacluster_tenant.t.tenant_id
-  user_id   = camundacluster_user.m.username
+resource "orchestration_cluster_tenant_member_user" "test" {
+  tenant_id = orchestration_cluster_tenant.t.tenant_id
+  user_id   = orchestration_cluster_user.m.username
 }
 `,
 	},
@@ -51,19 +51,19 @@ resource "camundacluster_tenant_member_user" "test" {
 		tenantId: "groupmembertenant",
 		memberId: "tenantmembergroup",
 		config: `
-resource "camundacluster_tenant" "t" {
+resource "orchestration_cluster_tenant" "t" {
   tenant_id = "groupmembertenant"
   name      = "groupmembertenant"
 }
 
-resource "camundacluster_group" "m" {
+resource "orchestration_cluster_group" "m" {
   group_id = "tenantmembergroup"
   name     = "tenantmembergroup"
 }
 
-resource "camundacluster_tenant_member_group" "test" {
-  tenant_id = camundacluster_tenant.t.tenant_id
-  group_id  = camundacluster_group.m.group_id
+resource "orchestration_cluster_tenant_member_group" "test" {
+  tenant_id = orchestration_cluster_tenant.t.tenant_id
+  group_id  = orchestration_cluster_group.m.group_id
 }
 `,
 	},
@@ -73,19 +73,19 @@ resource "camundacluster_tenant_member_group" "test" {
 		tenantId: "rolemembertenant",
 		memberId: "tenantmemberrole",
 		config: `
-resource "camundacluster_tenant" "t" {
+resource "orchestration_cluster_tenant" "t" {
   tenant_id = "rolemembertenant"
   name      = "rolemembertenant"
 }
 
-resource "camundacluster_role" "m" {
+resource "orchestration_cluster_role" "m" {
   role_id = "tenantmemberrole"
   name    = "tenantmemberrole"
 }
 
-resource "camundacluster_tenant_member_role" "test" {
-  tenant_id = camundacluster_tenant.t.tenant_id
-  role_id   = camundacluster_role.m.role_id
+resource "orchestration_cluster_tenant_member_role" "test" {
+  tenant_id = orchestration_cluster_tenant.t.tenant_id
+  role_id   = orchestration_cluster_role.m.role_id
 }
 `,
 	},
@@ -95,21 +95,21 @@ resource "camundacluster_tenant_member_role" "test" {
 		tenantId: "mappingrulemembertenant",
 		memberId: "tenantmembermappingrule",
 		config: `
-resource "camundacluster_tenant" "t" {
+resource "orchestration_cluster_tenant" "t" {
   tenant_id = "mappingrulemembertenant"
   name      = "mappingrulemembertenant"
 }
 
-resource "camundacluster_mapping_rule" "m" {
+resource "orchestration_cluster_mapping_rule" "m" {
   mapping_rule_id = "tenantmembermappingrule"
   claim_name      = "groups"
   claim_value     = "tenantmembermappingrule"
   name            = "tenantmembermappingrule"
 }
 
-resource "camundacluster_tenant_member_mapping_rule" "test" {
-  tenant_id       = camundacluster_tenant.t.tenant_id
-  mapping_rule_id = camundacluster_mapping_rule.m.mapping_rule_id
+resource "orchestration_cluster_tenant_member_mapping_rule" "test" {
+  tenant_id       = orchestration_cluster_tenant.t.tenant_id
+  mapping_rule_id = orchestration_cluster_mapping_rule.m.mapping_rule_id
 }
 `,
 	},
@@ -129,7 +129,7 @@ func TestAccTenantMemberResources(t *testing.T) {
 					},
 					// ImportState testing
 					{
-						ResourceName:      "camundacluster_" + tc.def.typeSuffix + ".test",
+						ResourceName:      "orchestration_cluster_" + tc.def.typeSuffix + ".test",
 						ImportState:       true,
 						ImportStateVerify: true,
 					},
@@ -195,7 +195,7 @@ func checkTenantMemberExistsInEngine(def membershipDef, tenantId, memberId strin
 		if err != nil {
 			return err
 		}
-		rt := "camundacluster_" + def.typeSuffix
+		rt := "orchestration_cluster_" + def.typeSuffix
 		for _, rs := range s.RootModule().Resources {
 			if rs.Type != rt {
 				continue

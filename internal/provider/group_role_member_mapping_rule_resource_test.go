@@ -27,21 +27,21 @@ var mappingRuleMemberAccCases = []struct {
 		ownerId:  "mappingrulemembergroup",
 		memberId: "groupmembermappingrule",
 		config: `
-resource "camundacluster_group" "o" {
+resource "orchestration_cluster_group" "o" {
   group_id = "mappingrulemembergroup"
   name     = "mappingrulemembergroup"
 }
 
-resource "camundacluster_mapping_rule" "m" {
+resource "orchestration_cluster_mapping_rule" "m" {
   mapping_rule_id = "groupmembermappingrule"
   claim_name      = "groups"
   claim_value     = "groupmembermappingrule"
   name            = "groupmembermappingrule"
 }
 
-resource "camundacluster_group_member_mapping_rule" "test" {
-  group_id        = camundacluster_group.o.group_id
-  mapping_rule_id = camundacluster_mapping_rule.m.mapping_rule_id
+resource "orchestration_cluster_group_member_mapping_rule" "test" {
+  group_id        = orchestration_cluster_group.o.group_id
+  mapping_rule_id = orchestration_cluster_mapping_rule.m.mapping_rule_id
 }
 `,
 	},
@@ -51,21 +51,21 @@ resource "camundacluster_group_member_mapping_rule" "test" {
 		ownerId:  "mappingrulememberrole",
 		memberId: "rolemembermappingrule",
 		config: `
-resource "camundacluster_role" "o" {
+resource "orchestration_cluster_role" "o" {
   role_id = "mappingrulememberrole"
   name    = "mappingrulememberrole"
 }
 
-resource "camundacluster_mapping_rule" "m" {
+resource "orchestration_cluster_mapping_rule" "m" {
   mapping_rule_id = "rolemembermappingrule"
   claim_name      = "groups"
   claim_value     = "rolemembermappingrule"
   name            = "rolemembermappingrule"
 }
 
-resource "camundacluster_role_member_mapping_rule" "test" {
-  role_id         = camundacluster_role.o.role_id
-  mapping_rule_id = camundacluster_mapping_rule.m.mapping_rule_id
+resource "orchestration_cluster_role_member_mapping_rule" "test" {
+  role_id         = orchestration_cluster_role.o.role_id
+  mapping_rule_id = orchestration_cluster_mapping_rule.m.mapping_rule_id
 }
 `,
 	},
@@ -83,7 +83,7 @@ func TestAccMappingRuleMemberResources(t *testing.T) {
 						Check:  checkMappingRuleMemberExistsInEngine(tc.def, tc.ownerId, tc.memberId),
 					},
 					{
-						ResourceName:      "camundacluster_" + tc.def.typeSuffix + ".test",
+						ResourceName:      "orchestration_cluster_" + tc.def.typeSuffix + ".test",
 						ImportState:       true,
 						ImportStateVerify: true,
 					},
@@ -147,7 +147,7 @@ func checkMappingRuleMemberExistsInEngine(def membershipDef, ownerId, memberId s
 		if err != nil {
 			return err
 		}
-		rt := "camundacluster_" + def.typeSuffix
+		rt := "orchestration_cluster_" + def.typeSuffix
 		for _, rs := range s.RootModule().Resources {
 			if rs.Type != rt {
 				continue

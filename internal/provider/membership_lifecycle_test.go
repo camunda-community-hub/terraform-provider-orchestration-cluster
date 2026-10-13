@@ -48,7 +48,7 @@ func membershipKindHCL(kind, label, id string) (string, bool) {
 	switch kind {
 	case "user":
 		return fmt.Sprintf(`
-resource "camundacluster_user" %q {
+resource "orchestration_cluster_user" %q {
   username = %q
   name     = %q
   email    = "%s@example.com"
@@ -57,28 +57,28 @@ resource "camundacluster_user" %q {
 `, label, id, id, id), true
 	case "group":
 		return fmt.Sprintf(`
-resource "camundacluster_group" %q {
+resource "orchestration_cluster_group" %q {
   group_id = %q
   name     = %q
 }
 `, label, id, id), true
 	case "role":
 		return fmt.Sprintf(`
-resource "camundacluster_role" %q {
+resource "orchestration_cluster_role" %q {
   role_id = %q
   name    = %q
 }
 `, label, id, id), true
 	case "tenant":
 		return fmt.Sprintf(`
-resource "camundacluster_tenant" %q {
+resource "orchestration_cluster_tenant" %q {
   tenant_id = %q
   name      = %q
 }
 `, label, id, id), true
 	case "mapping_rule":
 		return fmt.Sprintf(`
-resource "camundacluster_mapping_rule" %q {
+resource "orchestration_cluster_mapping_rule" %q {
   mapping_rule_id = %q
   claim_name      = "groups"
   claim_value     = %q
@@ -102,18 +102,18 @@ func membershipBlocks(def membershipDef, owners, members []string, assignOwner, 
 		label := fmt.Sprintf("%s_owner%d", def.typeSuffix, i)
 		if hcl, ok := membershipKindHCL(def.ownerLabel, label, id); ok {
 			b.WriteString(hcl)
-			deps = append(deps, fmt.Sprintf("camundacluster_%s.%s", def.ownerLabel, label))
+			deps = append(deps, fmt.Sprintf("orchestration_cluster_%s.%s", def.ownerLabel, label))
 		}
 	}
 	for i, id := range members {
 		label := fmt.Sprintf("%s_member%d", def.typeSuffix, i)
 		if hcl, ok := membershipKindHCL(def.memberLabel, label, id); ok {
 			b.WriteString(hcl)
-			deps = append(deps, fmt.Sprintf("camundacluster_%s.%s", def.memberLabel, label))
+			deps = append(deps, fmt.Sprintf("orchestration_cluster_%s.%s", def.memberLabel, label))
 		}
 	}
 	if assignOwner != "" {
-		fmt.Fprintf(&b, "\nresource \"camundacluster_%s\" \"test\" {\n  %s = %q\n  %s = %q\n", def.typeSuffix, def.ownerAttr(), assignOwner, def.memberAttr(), assignMember)
+		fmt.Fprintf(&b, "\nresource \"orchestration_cluster_%s\" \"test\" {\n  %s = %q\n  %s = %q\n", def.typeSuffix, def.ownerAttr(), assignOwner, def.memberAttr(), assignMember)
 		if len(deps) > 0 {
 			fmt.Fprintf(&b, "  depends_on = [%s]\n", strings.Join(deps, ", "))
 		}
@@ -146,7 +146,7 @@ func membershipAllConfig(pick func(def membershipDef) (assignOwner, assignMember
 func membershipExpectAction(action plancheck.ResourceActionType) tfresource.ConfigPlanChecks {
 	var checks []plancheck.PlanCheck
 	for _, def := range membershipLifecycleDefs {
-		checks = append(checks, plancheck.ExpectResourceAction("camundacluster_"+def.typeSuffix+".test", action))
+		checks = append(checks, plancheck.ExpectResourceAction("orchestration_cluster_"+def.typeSuffix+".test", action))
 	}
 	return tfresource.ConfigPlanChecks{PreApply: checks}
 }
@@ -212,7 +212,7 @@ func TestAccMembershipResources_adoptExisting(t *testing.T) {
 	checks := []tfresource.TestCheckFunc{}
 	for _, def := range membershipLifecycleDefs {
 		ownerA, memberA := assignA(def)
-		checks = append(checks, tfresource.TestCheckResourceAttr("camundacluster_"+def.typeSuffix+".test", "id", encodeMembershipId(ownerA, memberA)))
+		checks = append(checks, tfresource.TestCheckResourceAttr("orchestration_cluster_"+def.typeSuffix+".test", "id", encodeMembershipId(ownerA, memberA)))
 	}
 	tfresource.Test(t, tfresource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
