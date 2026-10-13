@@ -1,6 +1,6 @@
 terraform {
   required_providers {
-    camundacluster = {
+    orchestration = {
       source = "registry.terraform.io/camunda-community-hub/orchestration-cluster"
     }
   }
@@ -12,7 +12,7 @@ variable "client_secret" {}
 variable "login_url" {}
 variable "audience" {}
 
-provider "camundacluster" {
+provider "orchestration" {
   url = var.url
 
   #basic_auth = {
@@ -28,18 +28,18 @@ provider "camundacluster" {
   #}
 }
 
-#data "camundacluster_user" "test" {
+#data "orchestration_cluster_user" "test" {
 #  username = "admin"
 #}
-resource "camundacluster_user" "test" {
+resource "orchestration_cluster_user" "test" {
   username = "xxx"
   name     = "Jonathan Ballet"
   email    = "jonathan.ballet@camunda.com"
   password = "test123"
 }
 
-data "camundacluster_cluster_topology" "this" {}
+data "orchestration_cluster_cluster_topology" "this" {}
 
 output "topology" {
-  value = data.camundacluster_cluster_topology.this
+  value = data.orchestration_cluster_cluster_topology.this
 }

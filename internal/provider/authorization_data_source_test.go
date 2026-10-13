@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-// TestAccAuthorizationDataSource covers the camundacluster_authorization data source: a
+// TestAccAuthorizationDataSource covers the orchestration_cluster_authorization data source: a
 // successful lookup by key and the "Not Found" error for an unknown key.
 func TestAccAuthorizationDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -26,14 +26,14 @@ func TestAccAuthorizationDataSource(t *testing.T) {
 			{
 				Config: providerConfig +
 					testAccAuthorizationResourceConfig([]string{"READ_PROCESS_DEFINITION"}) +
-					testAccAuthorizationDataSourceConfig("camundacluster_authorization.test.id"),
+					testAccAuthorizationDataSourceConfig("orchestration_cluster_authorization.test.id"),
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue("data.camundacluster_authorization.test", tfjsonpath.New("owner_type"), knownvalue.StringExact("USER")),
-					statecheck.ExpectKnownValue("data.camundacluster_authorization.test", tfjsonpath.New("owner_id"), knownvalue.StringExact("demo")),
-					statecheck.ExpectKnownValue("data.camundacluster_authorization.test", tfjsonpath.New("resource_type"), knownvalue.StringExact("PROCESS_DEFINITION")),
-					statecheck.ExpectKnownValue("data.camundacluster_authorization.test", tfjsonpath.New("resource_id"), knownvalue.StringExact("test-process")),
-					statecheck.ExpectKnownValue("data.camundacluster_authorization.test", tfjsonpath.New("resource_property_name"), knownvalue.Null()),
-					statecheck.ExpectKnownValue("data.camundacluster_authorization.test", tfjsonpath.New("permission_types"), knownvalue.SetExact([]knownvalue.Check{
+					statecheck.ExpectKnownValue("data.orchestration_cluster_authorization.test", tfjsonpath.New("owner_type"), knownvalue.StringExact("USER")),
+					statecheck.ExpectKnownValue("data.orchestration_cluster_authorization.test", tfjsonpath.New("owner_id"), knownvalue.StringExact("demo")),
+					statecheck.ExpectKnownValue("data.orchestration_cluster_authorization.test", tfjsonpath.New("resource_type"), knownvalue.StringExact("PROCESS_DEFINITION")),
+					statecheck.ExpectKnownValue("data.orchestration_cluster_authorization.test", tfjsonpath.New("resource_id"), knownvalue.StringExact("test-process")),
+					statecheck.ExpectKnownValue("data.orchestration_cluster_authorization.test", tfjsonpath.New("resource_property_name"), knownvalue.Null()),
+					statecheck.ExpectKnownValue("data.orchestration_cluster_authorization.test", tfjsonpath.New("permission_types"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("READ_PROCESS_DEFINITION"),
 					})),
 				},
@@ -56,7 +56,7 @@ func TestAccAuthorizationDataSource_PropertyBased(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: providerConfig + `
-resource "camundacluster_authorization" "test" {
+resource "orchestration_cluster_authorization" "test" {
   owner_type             = "USER"
   owner_id               = "demo"
   resource_type          = "PROCESS_DEFINITION"
@@ -67,17 +67,17 @@ resource "camundacluster_authorization" "test" {
 			},
 			{
 				Config: providerConfig + `
-resource "camundacluster_authorization" "test" {
+resource "orchestration_cluster_authorization" "test" {
   owner_type             = "USER"
   owner_id               = "demo"
   resource_type          = "PROCESS_DEFINITION"
   resource_property_name = "customerId"
   permission_types       = ["READ_PROCESS_DEFINITION"]
 }
-` + testAccAuthorizationDataSourceConfig("camundacluster_authorization.test.id"),
+` + testAccAuthorizationDataSourceConfig("orchestration_cluster_authorization.test.id"),
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue("data.camundacluster_authorization.test", tfjsonpath.New("resource_property_name"), knownvalue.StringExact("customerId")),
-					statecheck.ExpectKnownValue("data.camundacluster_authorization.test", tfjsonpath.New("resource_id"), knownvalue.Null()),
+					statecheck.ExpectKnownValue("data.orchestration_cluster_authorization.test", tfjsonpath.New("resource_property_name"), knownvalue.StringExact("customerId")),
+					statecheck.ExpectKnownValue("data.orchestration_cluster_authorization.test", tfjsonpath.New("resource_id"), knownvalue.Null()),
 				},
 			},
 		},
@@ -86,7 +86,7 @@ resource "camundacluster_authorization" "test" {
 
 func testAccAuthorizationDataSourceConfig(idExpr string) string {
 	return `
-data "camundacluster_authorization" "test" {
+data "orchestration_cluster_authorization" "test" {
   id = ` + idExpr + `
 }
 `

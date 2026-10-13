@@ -1,0 +1,1 @@
+terraform import orchestration_cluster_role_member_mapping_rule.admin ops/admin-mapping

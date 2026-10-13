@@ -12,7 +12,7 @@ const (
 	testClusterURL = "http://localhost:8080/v2"
 
 	providerConfig = `
-provider "camundacluster" {
+provider "orchestration" {
 	url = "` + testClusterURL + `"
 }
 `
@@ -23,7 +23,7 @@ provider "camundacluster" {
 	// create yet. Those steps already know the object does not exist, so waiting the whole
 	// default only slows the suite.
 	providerConfigShortConsistency = `
-provider "camundacluster" {
+provider "orchestration" {
 	url                 = "` + testClusterURL + `"
 	consistency_timeout = "5s"
 }
@@ -34,7 +34,7 @@ provider "camundacluster" {
 // The factory function is called for each Terraform CLI command to create a provider
 // server that the CLI can connect to and interact with.
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-	"camundacluster": providerserver.NewProtocol6WithError(New("test")()),
+	"orchestration": providerserver.NewProtocol6WithError(New("test")()),
 }
 
 func testAccPreCheck(t *testing.T) {

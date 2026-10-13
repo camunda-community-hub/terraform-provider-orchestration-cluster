@@ -25,7 +25,7 @@ func TestAccRoleResource(t *testing.T) {
 				Config: providerConfig + testAccRoleResourceConfig("test-role-1", "Test Role 1", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_role.test",
+						"orchestration_cluster_role.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Test Role 1"),
 					),
@@ -34,7 +34,7 @@ func TestAccRoleResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_role.test",
+				ResourceName:      "orchestration_cluster_role.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -43,12 +43,12 @@ func TestAccRoleResource(t *testing.T) {
 				Config: providerConfig + testAccRoleResourceConfig("test-role-1", "Test Role 2", "A description"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_role.test",
+						"orchestration_cluster_role.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Test Role 2"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_role.test",
+						"orchestration_cluster_role.test",
 						tfjsonpath.New("description"),
 						knownvalue.StringExact("A description"),
 					),
@@ -61,7 +61,7 @@ func TestAccRoleResource(t *testing.T) {
 				Config: providerConfig + testAccRoleResourceConfig("test-role-1", "Test Role 2", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_role.test",
+						"orchestration_cluster_role.test",
 						tfjsonpath.New("description"),
 						knownvalue.Null(),
 					),
@@ -75,14 +75,14 @@ func TestAccRoleResource(t *testing.T) {
 func testAccRoleResourceConfig(roleId, name, description string) string {
 	if description == "" {
 		return fmt.Sprintf(`
-resource "camundacluster_role" "test" {
+resource "orchestration_cluster_role" "test" {
   role_id = %q
   name    = %q
 }
 `, roleId, name)
 	}
 	return fmt.Sprintf(`
-resource "camundacluster_role" "test" {
+resource "orchestration_cluster_role" "test" {
   role_id     = %q
   name        = %q
   description = %q
@@ -97,7 +97,7 @@ func checkRoleExistsInEngine(roleName string) resource.TestCheckFunc {
 			return err
 		}
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type != "camundacluster_role" {
+			if rs.Type != "orchestration_cluster_role" {
 				continue
 			}
 			roleId := rs.Primary.ID
@@ -130,7 +130,7 @@ func checkRoleExistsInEngine(roleName string) resource.TestCheckFunc {
 
 func TestAccRoleResource_DriftAndReplace(t *testing.T) {
 	runIdentityLifecycleTest(t, identityLifecycleCase{
-		address: "camundacluster_role.test",
+		address: "orchestration_cluster_role.test",
 		config:  func(id string) string { return testAccRoleResourceConfig(id, "Lifecycle Role", "") },
 		deleteInEngine: func(ctx context.Context, client *camunda.ClientWithResponses, id string) (int, error) {
 			resp, err := client.DeleteRoleWithResponse(ctx, id)

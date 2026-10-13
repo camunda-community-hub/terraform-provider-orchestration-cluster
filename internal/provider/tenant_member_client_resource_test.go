@@ -24,7 +24,7 @@ func TestAccTenantMemberClientResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_tenant_member_client.test",
+				ResourceName:      "orchestration_cluster_tenant_member_client.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -95,13 +95,13 @@ func unassignTenantMemberClientOutOfBand(tenantId, clientId string) func() {
 
 func testAccTenantMemberClientResourceConfig() string {
 	return `
-resource "camundacluster_tenant" "clientmembertenant" {
+resource "orchestration_cluster_tenant" "clientmembertenant" {
   tenant_id = "clientmembertenant"
   name      = "clientmembertenant"
 }
 
-resource "camundacluster_tenant_member_client" "test" {
-  tenant_id = camundacluster_tenant.clientmembertenant.id
+resource "orchestration_cluster_tenant_member_client" "test" {
+  tenant_id = orchestration_cluster_tenant.clientmembertenant.id
   client_id = "test-client"
 }
 `
@@ -114,7 +114,7 @@ func checkTenantClientAssignmentExistsInEngine() resource.TestCheckFunc {
 			return err
 		}
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type != "camundacluster_tenant_member_client" {
+			if rs.Type != "orchestration_cluster_tenant_member_client" {
 				continue
 			}
 			tid := rs.Primary.Attributes["tenant_id"]

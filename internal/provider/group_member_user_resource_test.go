@@ -24,7 +24,7 @@ func TestAccGroupMemberUserResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_group_member_user.test",
+				ResourceName:      "orchestration_cluster_group_member_user.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -95,21 +95,21 @@ func unassignGroupMemberUserOutOfBand(groupId, userId string) func() {
 
 func testAccGroupMemberUserResourceConfig() string {
 	return `
-resource "camundacluster_user" "memberuser" {
+resource "orchestration_cluster_user" "memberuser" {
   username = "memberuser1"
   name     = "Member User"
   email    = "memberuser1@example.com"
   password = "testpass123"
 }
 
-resource "camundacluster_group" "membergroup" {
+resource "orchestration_cluster_group" "membergroup" {
   group_id = "membertestgroup"
   name     = "membertestgroup"
 }
 
-resource "camundacluster_group_member_user" "test" {
-  group_id = camundacluster_group.membergroup.id
-  user_id  = camundacluster_user.memberuser.id
+resource "orchestration_cluster_group_member_user" "test" {
+  group_id = orchestration_cluster_group.membergroup.id
+  user_id  = orchestration_cluster_user.memberuser.id
 }
 `
 }
@@ -121,7 +121,7 @@ func checkGroupUserAssignmentExistsInEngine(groupId, userId string) resource.Tes
 			return err
 		}
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type != "camundacluster_group_member_user" {
+			if rs.Type != "orchestration_cluster_group_member_user" {
 				continue
 			}
 			gid := rs.Primary.Attributes["group_id"]

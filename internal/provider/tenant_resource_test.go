@@ -24,17 +24,17 @@ func TestAccTenantResource(t *testing.T) {
 				Config: providerConfig + testAccTenantResourceConfig("tenant1", "Foo Bar", "A test tenant"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("tenant1"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Foo Bar"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("description"),
 						knownvalue.StringExact("A test tenant"),
 					),
@@ -42,7 +42,7 @@ func TestAccTenantResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_tenant.test",
+				ResourceName:      "orchestration_cluster_tenant.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -52,17 +52,17 @@ func TestAccTenantResource(t *testing.T) {
 				Config: providerConfig + testAccTenantResourceConfig("tenant1", "Plop Plip", "An updated test tenant"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("tenant1"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Plop Plip"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("description"),
 						knownvalue.StringExact("An updated test tenant"),
 					),
@@ -74,17 +74,17 @@ func TestAccTenantResource(t *testing.T) {
 				Config: providerConfig + testAccTenantResourceConfigNoDescription("tenant1", "Plop Plip"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("tenant1"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Plop Plip"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("description"),
 						knownvalue.Null(),
 					),
@@ -97,7 +97,7 @@ func TestAccTenantResource(t *testing.T) {
 
 func testAccTenantResourceConfig(tenantId, name, description string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_tenant" "test" {
+resource "orchestration_cluster_tenant" "test" {
   tenant_id   = "%s"
   name        = "%s"
   description = "%s"
@@ -107,7 +107,7 @@ resource "camundacluster_tenant" "test" {
 
 func testAccTenantResourceConfigNoDescription(tenantId, name string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_tenant" "test" {
+resource "orchestration_cluster_tenant" "test" {
   tenant_id = "%s"
   name      = "%s"
 }
@@ -149,12 +149,12 @@ func TestAccTenantResource_tenantIdChangeForcesReplacement(t *testing.T) {
 				Config: providerConfig + testAccTenantResourceConfig("replacetenant2", "Replace Tenant", "replace"),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("camundacluster_tenant.test", plancheck.ResourceActionDestroyBeforeCreate),
+						plancheck.ExpectResourceAction("orchestration_cluster_tenant.test", plancheck.ResourceActionDestroyBeforeCreate),
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_tenant.test",
+						"orchestration_cluster_tenant.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("replacetenant2"),
 					),

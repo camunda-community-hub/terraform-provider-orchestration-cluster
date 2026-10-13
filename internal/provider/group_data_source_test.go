@@ -18,7 +18,7 @@ import (
 	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
-// TestAccGroupDataSource covers the camundacluster_group data source: a
+// TestAccGroupDataSource covers the orchestration_cluster_group data source: a
 // successful name lookup, the zero-match "Not Found" error, and the
 // multiple-match "Ambiguous Lookup" error.
 //
@@ -41,15 +41,15 @@ func TestAccGroupDataSource(t *testing.T) {
 			{
 				Config: providerConfig +
 					testAccGroupResourceConfig("test-group-ds-lookup", "DS Lookup Group", "A description for the data source lookup") +
-					testAccGroupDataSourceConfig("camundacluster_group.test.name"),
+					testAccGroupDataSourceConfig("orchestration_cluster_group.test.name"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_group.test",
+						"data.orchestration_cluster_group.test",
 						tfjsonpath.New("id"),
 						knownvalue.StringExact("test-group-ds-lookup"),
 					),
 					statecheck.ExpectKnownValue(
-						"data.camundacluster_group.test",
+						"data.orchestration_cluster_group.test",
 						tfjsonpath.New("description"),
 						knownvalue.StringExact("A description for the data source lookup"),
 					),
@@ -82,7 +82,7 @@ func TestAccGroupDataSource(t *testing.T) {
 
 func testAccGroupDataSourceConfig(nameExpr string) string {
 	return fmt.Sprintf(`
-data "camundacluster_group" "test" {
+data "orchestration_cluster_group" "test" {
   name = %s
 }
 `, nameExpr)
@@ -90,12 +90,12 @@ data "camundacluster_group" "test" {
 
 func testAccGroupDuplicateNameResourcesConfig(name string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_group" "dup_a" {
+resource "orchestration_cluster_group" "dup_a" {
   group_id = "test-group-ds-dup-a"
   name     = %q
 }
 
-resource "camundacluster_group" "dup_b" {
+resource "orchestration_cluster_group" "dup_b" {
   group_id = "test-group-ds-dup-b"
   name     = %q
 }

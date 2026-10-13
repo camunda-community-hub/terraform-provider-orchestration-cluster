@@ -24,7 +24,7 @@ func TestAccRoleMemberUserResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_role_member_user.test",
+				ResourceName:      "orchestration_cluster_role_member_user.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -95,21 +95,21 @@ func unassignRoleMemberUserOutOfBand(roleId, userId string) func() {
 
 func testAccRoleMemberUserResourceConfig() string {
 	return `
-resource "camundacluster_user" "rolememberuser" {
+resource "orchestration_cluster_user" "rolememberuser" {
   username = "rolememberuser1"
   name     = "Role Member User"
   email    = "rolememberuser1@example.com"
   password = "testpass123"
 }
 
-resource "camundacluster_role" "rolememberrole" {
+resource "orchestration_cluster_role" "rolememberrole" {
   role_id = "rolememberrole"
   name    = "rolememberrole"
 }
 
-resource "camundacluster_role_member_user" "test" {
-  role_id = camundacluster_role.rolememberrole.id
-  user_id = camundacluster_user.rolememberuser.id
+resource "orchestration_cluster_role_member_user" "test" {
+  role_id = orchestration_cluster_role.rolememberrole.id
+  user_id = orchestration_cluster_user.rolememberuser.id
 }
 `
 }
@@ -121,7 +121,7 @@ func checkRoleUserAssignmentExistsInEngine() resource.TestCheckFunc {
 			return err
 		}
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type != "camundacluster_role_member_user" {
+			if rs.Type != "orchestration_cluster_role_member_user" {
 				continue
 			}
 			rid := rs.Primary.Attributes["role_id"]

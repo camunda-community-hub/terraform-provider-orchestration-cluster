@@ -27,7 +27,7 @@ func TestAccAuthorizationResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_authorization.test",
+				ResourceName:      "orchestration_cluster_authorization.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -37,7 +37,7 @@ func TestAccAuthorizationResource(t *testing.T) {
 				Check:  checkAuthorizationExistsInEngine([]string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_authorization.test",
+						"orchestration_cluster_authorization.test",
 						tfjsonpath.New("permission_types"),
 						knownvalue.SetExact([]knownvalue.Check{
 							knownvalue.StringExact("READ_PROCESS_DEFINITION"),
@@ -56,7 +56,7 @@ func testAccAuthorizationResourceConfig(permissions []string) string {
 		quoted[i] = fmt.Sprintf("%q", p)
 	}
 	return fmt.Sprintf(`
-resource "camundacluster_authorization" "test" {
+resource "orchestration_cluster_authorization" "test" {
   owner_type       = "USER"
   owner_id         = "demo"
   resource_type    = "PROCESS_DEFINITION"
@@ -80,14 +80,14 @@ func TestAccAuthorizationResource_PropertyBased(t *testing.T) {
 			{
 				Config: providerConfig + testAccAuthorizationPropertyBasedResourceConfig([]string{"READ_PROCESS_DEFINITION"}),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("camundacluster_authorization.test_property", "resource_property_name", "processDefinitionKey"),
-					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_property", "resource_id"),
-					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_property", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourcePropertyName: "processDefinitionKey", isPropertyBased: true}),
+					resource.TestCheckResourceAttr("orchestration_cluster_authorization.test_property", "resource_property_name", "processDefinitionKey"),
+					resource.TestCheckNoResourceAttr("orchestration_cluster_authorization.test_property", "resource_id"),
+					checkAuthorizationExistsInEngineWithVariant("orchestration_cluster_authorization.test_property", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourcePropertyName: "processDefinitionKey", isPropertyBased: true}),
 				),
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_authorization.test_property",
+				ResourceName:      "orchestration_cluster_authorization.test_property",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -96,9 +96,9 @@ func TestAccAuthorizationResource_PropertyBased(t *testing.T) {
 			{
 				Config: providerConfig + testAccAuthorizationPropertyBasedResourceConfig([]string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("camundacluster_authorization.test_property", "resource_property_name", "processDefinitionKey"),
-					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_property", "resource_id"),
-					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_property", []string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}, authorizationRequestVariant{resourcePropertyName: "processDefinitionKey", isPropertyBased: true}),
+					resource.TestCheckResourceAttr("orchestration_cluster_authorization.test_property", "resource_property_name", "processDefinitionKey"),
+					resource.TestCheckNoResourceAttr("orchestration_cluster_authorization.test_property", "resource_id"),
+					checkAuthorizationExistsInEngineWithVariant("orchestration_cluster_authorization.test_property", []string{"READ_PROCESS_DEFINITION", "CREATE_PROCESS_INSTANCE"}, authorizationRequestVariant{resourcePropertyName: "processDefinitionKey", isPropertyBased: true}),
 				),
 			},
 		},
@@ -111,7 +111,7 @@ func testAccAuthorizationPropertyBasedResourceConfig(permissions []string) strin
 		quoted[i] = fmt.Sprintf("%q", p)
 	}
 	return fmt.Sprintf(`
-resource "camundacluster_authorization" "test_property" {
+resource "orchestration_cluster_authorization" "test_property" {
   owner_type              = "USER"
   owner_id                = "demo"
   resource_type           = "PROCESS_DEFINITION"
@@ -122,7 +122,7 @@ resource "camundacluster_authorization" "test_property" {
 }
 
 func checkAuthorizationExistsInEngine(expectedPermissions []string) resource.TestCheckFunc {
-	return checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test", expectedPermissions, authorizationRequestVariant{resourceId: "test-process"})
+	return checkAuthorizationExistsInEngineWithVariant("orchestration_cluster_authorization.test", expectedPermissions, authorizationRequestVariant{resourceId: "test-process"})
 }
 
 // checkAuthorizationExistsInEngineWithVariant verifies that the named authorization
@@ -170,27 +170,27 @@ func TestAccAuthorizationResource_ScopeTransition(t *testing.T) {
 			{
 				Config: providerConfig + testAccAuthorizationTransitionResourceConfig(false, []string{"READ_PROCESS_DEFINITION"}),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("camundacluster_authorization.test_transition", "resource_id", "test-process"),
-					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_transition", "resource_property_name"),
-					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "test-process"}),
+					resource.TestCheckResourceAttr("orchestration_cluster_authorization.test_transition", "resource_id", "test-process"),
+					resource.TestCheckNoResourceAttr("orchestration_cluster_authorization.test_transition", "resource_property_name"),
+					checkAuthorizationExistsInEngineWithVariant("orchestration_cluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "test-process"}),
 				),
 			},
 			// Transition ID-based -> property-based: resource_id omitted, resource_property_name configured.
 			{
 				Config: providerConfig + testAccAuthorizationTransitionResourceConfig(true, []string{"READ_PROCESS_DEFINITION"}),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("camundacluster_authorization.test_transition", "resource_property_name", "processDefinitionKey"),
-					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_transition", "resource_id"),
-					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourcePropertyName: "processDefinitionKey", isPropertyBased: true}),
+					resource.TestCheckResourceAttr("orchestration_cluster_authorization.test_transition", "resource_property_name", "processDefinitionKey"),
+					resource.TestCheckNoResourceAttr("orchestration_cluster_authorization.test_transition", "resource_id"),
+					checkAuthorizationExistsInEngineWithVariant("orchestration_cluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourcePropertyName: "processDefinitionKey", isPropertyBased: true}),
 				),
 			},
 			// Transition back property-based -> ID-based: resource_property_name omitted, resource_id configured again.
 			{
 				Config: providerConfig + testAccAuthorizationTransitionResourceConfig(false, []string{"READ_PROCESS_DEFINITION"}),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("camundacluster_authorization.test_transition", "resource_id", "test-process"),
-					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_transition", "resource_property_name"),
-					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "test-process"}),
+					resource.TestCheckResourceAttr("orchestration_cluster_authorization.test_transition", "resource_id", "test-process"),
+					resource.TestCheckNoResourceAttr("orchestration_cluster_authorization.test_transition", "resource_property_name"),
+					checkAuthorizationExistsInEngineWithVariant("orchestration_cluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "test-process"}),
 				),
 			},
 			// Remove the explicit scope entirely: neither resource_id nor resource_property_name
@@ -203,9 +203,9 @@ func TestAccAuthorizationResource_ScopeTransition(t *testing.T) {
 			{
 				Config: providerConfig + testAccAuthorizationTransitionResourceConfigNoScope([]string{"READ_PROCESS_DEFINITION"}),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("camundacluster_authorization.test_transition", "resource_id", "*"),
-					resource.TestCheckNoResourceAttr("camundacluster_authorization.test_transition", "resource_property_name"),
-					checkAuthorizationExistsInEngineWithVariant("camundacluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "*"}),
+					resource.TestCheckResourceAttr("orchestration_cluster_authorization.test_transition", "resource_id", "*"),
+					resource.TestCheckNoResourceAttr("orchestration_cluster_authorization.test_transition", "resource_property_name"),
+					checkAuthorizationExistsInEngineWithVariant("orchestration_cluster_authorization.test_transition", []string{"READ_PROCESS_DEFINITION"}, authorizationRequestVariant{resourceId: "*"}),
 				),
 			},
 		},
@@ -224,7 +224,7 @@ func testAccAuthorizationTransitionResourceConfig(useProperty bool, permissions 
 	}
 
 	return fmt.Sprintf(`
-resource "camundacluster_authorization" "test_transition" {
+resource "orchestration_cluster_authorization" "test_transition" {
   owner_type       = "USER"
   owner_id         = "demo"
   resource_type    = "PROCESS_DEFINITION"
@@ -244,7 +244,7 @@ func testAccAuthorizationTransitionResourceConfigNoScope(permissions []string) s
 	}
 
 	return fmt.Sprintf(`
-resource "camundacluster_authorization" "test_transition" {
+resource "orchestration_cluster_authorization" "test_transition" {
   owner_type       = "USER"
   owner_id         = "demo"
   resource_type    = "PROCESS_DEFINITION"

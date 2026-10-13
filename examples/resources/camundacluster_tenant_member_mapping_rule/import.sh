@@ -1,1 +1,0 @@
-terraform import camundacluster_tenant_member_mapping_rule.admin acme/admin-mapping

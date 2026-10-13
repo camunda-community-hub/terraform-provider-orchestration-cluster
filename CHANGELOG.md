@@ -1,3 +1,18 @@
+## 0.2.0 (Unreleased)
+
+BREAKING CHANGES:
+
+* All resource and data source type names changed prefix from `camundacluster_` to `orchestration_cluster_` (for example `camundacluster_user` is now `orchestration_cluster_user`). Because Terraform derives the provider from the type name prefix, the provider local name is now `orchestration`: declare it with `required_providers { orchestration = { source = "camunda-community-hub/orchestration-cluster" } }` and use `provider "orchestration" { ... }`.
+
+NOTES:
+
+* Users of 0.1.0 and 0.1.1 must update their configuration (resource and data source types, `provider` blocks, `provider = ...` references and `required_providers`) and migrate state. Tested with Terraform 1.16.4 against v0.1.1 and a local build of this release (group, role, user, tenant, cluster variable, group membership and a data source):
+  * Terraform records the provider by its registry source (`registry.terraform.io/camunda-community-hub/orchestration-cluster`), which is unchanged, so `terraform state replace-provider` is not needed.
+  * With the new configuration and the old state, `terraform plan` and `apply` fail with "no schema available for camundacluster_..." until the old addresses are removed from state.
+  * Working procedure: update the configuration, run `terraform state rm` for each old resource address, then `terraform import` each new resource address with the import ID documented for the resource. Old data source addresses also have to be removed from state (`state rm`), but they are not imported: Terraform re-reads them on the next plan. `state rm` does not touch the cluster. After this, `terraform plan` showed no changes for group, role, tenant and cluster variable.
+  * Caveat: `password` of `orchestration_cluster_user` is not imported, so the first plan wants an in-place update of the user, and a membership that references the user is replaced (destroy and create). Applying that worked and left no further changes. Adding `lifecycle { ignore_changes = [password] }` to the user resource avoided both changes in a plan test.
+  * Does not work: `terraform state mv` ("resource types don't match") and a `moved` block ("target resource implementation does not include move resource state support", as the provider has no `MoveState`). Alternatively recreate the resources.
+
 ## 0.1.0 (Unreleased)
 
 First release. This is a `0.x` version: the resource and data source surface may still change

@@ -171,7 +171,7 @@ func (r *membershipResource) Schema(ctx context.Context, req resource.SchemaRequ
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: fmt.Sprintf("Composite ID of the assignment (percent-encoded `%[1]s/%[2]s`). Also used as the import ID: `terraform import camundacluster_%[3]s.example <%[1]s>/<%[2]s>`, with each component percent-encoded if it contains a `/`.", d.ownerAttr(), d.memberAttr(), d.typeSuffix),
+				MarkdownDescription: fmt.Sprintf("Composite ID of the assignment (percent-encoded `%[1]s/%[2]s`). Also used as the import ID: `terraform import orchestration_cluster_%[3]s.example <%[1]s>/<%[2]s>`, with each component percent-encoded if it contains a `/`.", d.ownerAttr(), d.memberAttr(), d.typeSuffix),
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),

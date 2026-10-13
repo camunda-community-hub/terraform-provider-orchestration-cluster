@@ -24,22 +24,22 @@ func TestAccMappingRuleResource(t *testing.T) {
 				Config: providerConfig + testAccMappingRuleResourceConfig("test-mapping-rule", "admin", "Admin Mapping"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_mapping_rule.test",
+						"orchestration_cluster_mapping_rule.test",
 						tfjsonpath.New("mapping_rule_id"),
 						knownvalue.StringExact("test-mapping-rule"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_mapping_rule.test",
+						"orchestration_cluster_mapping_rule.test",
 						tfjsonpath.New("claim_name"),
 						knownvalue.StringExact("groups"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_mapping_rule.test",
+						"orchestration_cluster_mapping_rule.test",
 						tfjsonpath.New("claim_value"),
 						knownvalue.StringExact("admin"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_mapping_rule.test",
+						"orchestration_cluster_mapping_rule.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Admin Mapping"),
 					),
@@ -47,12 +47,12 @@ func TestAccMappingRuleResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:                         "camundacluster_mapping_rule.test",
+				ResourceName:                         "orchestration_cluster_mapping_rule.test",
 				ImportState:                          true,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "mapping_rule_id",
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
-					return s.RootModule().Resources["camundacluster_mapping_rule.test"].Primary.Attributes["mapping_rule_id"], nil
+					return s.RootModule().Resources["orchestration_cluster_mapping_rule.test"].Primary.Attributes["mapping_rule_id"], nil
 				},
 			},
 			// Update and Read testing
@@ -60,17 +60,17 @@ func TestAccMappingRuleResource(t *testing.T) {
 				Config: providerConfig + testAccMappingRuleResourceConfig("test-mapping-rule", "operator", "Operator Mapping"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"camundacluster_mapping_rule.test",
+						"orchestration_cluster_mapping_rule.test",
 						tfjsonpath.New("claim_name"),
 						knownvalue.StringExact("groups"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_mapping_rule.test",
+						"orchestration_cluster_mapping_rule.test",
 						tfjsonpath.New("claim_value"),
 						knownvalue.StringExact("operator"),
 					),
 					statecheck.ExpectKnownValue(
-						"camundacluster_mapping_rule.test",
+						"orchestration_cluster_mapping_rule.test",
 						tfjsonpath.New("name"),
 						knownvalue.StringExact("Operator Mapping"),
 					),
@@ -83,7 +83,7 @@ func TestAccMappingRuleResource(t *testing.T) {
 
 func testAccMappingRuleResourceConfig(mappingRuleId, claimValue, name string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_mapping_rule" "test" {
+resource "orchestration_cluster_mapping_rule" "test" {
   mapping_rule_id = "%s"
   claim_name      = "groups"
   claim_value     = "%s"
@@ -94,7 +94,7 @@ resource "camundacluster_mapping_rule" "test" {
 
 func TestAccMappingRuleResource_DriftAndReplace(t *testing.T) {
 	runIdentityLifecycleTest(t, identityLifecycleCase{
-		address: "camundacluster_mapping_rule.test",
+		address: "orchestration_cluster_mapping_rule.test",
 		config: func(id string) string {
 			return testAccMappingRuleResourceConfig(id, "lifecycle", "Lifecycle Mapping")
 		},

@@ -1,0 +1,1 @@
+terraform import orchestration_cluster_tenant_member_mapping_rule.admin acme/admin-mapping

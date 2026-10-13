@@ -18,12 +18,12 @@ import (
 	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
 )
 
-// TestAccTenantDataSource covers the camundacluster_tenant data source: lookup by tenant ID,
+// TestAccTenantDataSource covers the orchestration_cluster_tenant data source: lookup by tenant ID,
 // lookup by name, the not-found errors for both, the invalid-configuration error, and the
 // ambiguous-name error. Lookups
 // run in a step after the tenant was created in an earlier step.
 func TestAccTenantDataSource(t *testing.T) {
-	const dataSource = "data.camundacluster_tenant.test"
+	const dataSource = "data.orchestration_cluster_tenant.test"
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -36,14 +36,14 @@ func TestAccTenantDataSource(t *testing.T) {
 			{
 				Config: providerConfig +
 					testAccTenantResourceConfig("tenant-ds-lookup", "DS Lookup Tenant", "A description for the data source lookup") +
-					testAccTenantDataSourceConfig(`tenant_id = camundacluster_tenant.test.tenant_id`),
+					testAccTenantDataSourceConfig(`tenant_id = orchestration_cluster_tenant.test.tenant_id`),
 				ConfigStateChecks: testAccTenantDataSourceChecks(dataSource),
 			},
 			// Successful lookup by name.
 			{
 				Config: providerConfig +
 					testAccTenantResourceConfig("tenant-ds-lookup", "DS Lookup Tenant", "A description for the data source lookup") +
-					testAccTenantDataSourceConfig(`name = camundacluster_tenant.test.name`),
+					testAccTenantDataSourceConfig(`name = orchestration_cluster_tenant.test.name`),
 				ConfigStateChecks: testAccTenantDataSourceChecks(dataSource),
 			},
 			// Neither tenant_id nor name set.
@@ -86,12 +86,12 @@ func TestAccTenantDataSource(t *testing.T) {
 
 func testAccTenantDuplicateNameResourcesConfig(name string) string {
 	return fmt.Sprintf(`
-resource "camundacluster_tenant" "dup_a" {
+resource "orchestration_cluster_tenant" "dup_a" {
   tenant_id = "tenant-ds-dup-a"
   name      = %q
 }
 
-resource "camundacluster_tenant" "dup_b" {
+resource "orchestration_cluster_tenant" "dup_b" {
   tenant_id = "tenant-ds-dup-b"
   name      = %q
 }
@@ -149,7 +149,7 @@ func testAccTenantDataSourceChecks(address string) []statecheck.StateCheck {
 
 func testAccTenantDataSourceConfig(lookupAttrs string) string {
 	return fmt.Sprintf(`
-data "camundacluster_tenant" "test" {
+data "orchestration_cluster_tenant" "test" {
   %s
 }
 `, lookupAttrs)

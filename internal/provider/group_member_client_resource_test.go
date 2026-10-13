@@ -24,7 +24,7 @@ func TestAccGroupMemberClientResource(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:      "camundacluster_group_member_client.test",
+				ResourceName:      "orchestration_cluster_group_member_client.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -95,13 +95,13 @@ func unassignGroupMemberClientOutOfBand(groupId, clientId string) func() {
 
 func testAccGroupMemberClientResourceConfig() string {
 	return `
-resource "camundacluster_group" "clientmembergroup" {
+resource "orchestration_cluster_group" "clientmembergroup" {
   group_id = "clientmembergroup"
   name     = "clientmembergroup"
 }
 
-resource "camundacluster_group_member_client" "test" {
-  group_id  = camundacluster_group.clientmembergroup.id
+resource "orchestration_cluster_group_member_client" "test" {
+  group_id  = orchestration_cluster_group.clientmembergroup.id
   client_id = "test-client"
 }
 `
@@ -114,7 +114,7 @@ func checkGroupClientAssignmentExistsInEngine() resource.TestCheckFunc {
 			return err
 		}
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type != "camundacluster_group_member_client" {
+			if rs.Type != "orchestration_cluster_group_member_client" {
 				continue
 			}
 			gid := rs.Primary.Attributes["group_id"]

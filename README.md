@@ -6,8 +6,22 @@ This provider manages the configuration of existing [Camunda](https://camunda.co
 
 The cluster connection is configured directly in the `provider` block. All resources are scoped to the provider, so a single Terraform workspace configures one cluster. Use [provider aliases](https://developer.hashicorp.com/terraform/language/providers/configuration#alias-multiple-provider-configurations) to manage multiple clusters from one state.
 
+### Declaring the provider
+
 ```hcl
-provider "camundacluster" {
+terraform {
+  required_providers {
+    orchestration = {
+      source = "camunda-community-hub/orchestration-cluster"
+    }
+  }
+}
+```
+
+The local name must be `orchestration`. Terraform derives a resource's provider from the part of its type name before the first underscore, so `orchestration_cluster_*` types only match a provider with the local name `orchestration`. A hyphenated local name such as `orchestration-cluster` (as the registry's "Use Provider" snippet may show) does not match any resource type.
+
+```hcl
+provider "orchestration" {
   url = "https://cluster.example.com/v2"
 
   oidc {
@@ -18,7 +32,7 @@ provider "camundacluster" {
   }
 }
 
-resource "camundacluster_user" "alice" {
+resource "orchestration_cluster_user" "alice" {
   username = "alice"
   email    = "alice@example.com"
 }
@@ -29,7 +43,7 @@ Basic auth is also supported via a `basic_auth { username = ...; password = ... 
 ### Multiple clusters
 
 ```hcl
-provider "camundacluster" {
+provider "orchestration" {
   alias = "production"
   url   = "https://cluster.example.com/v2"
 
@@ -41,7 +55,7 @@ provider "camundacluster" {
   }
 }
 
-provider "camundacluster" {
+provider "orchestration" {
   alias = "staging"
   url   = "https://staging.cluster.example.com/v2"
 
@@ -53,8 +67,8 @@ provider "camundacluster" {
   }
 }
 
-resource "camundacluster_user" "alice" {
-  provider = camundacluster.production
+resource "orchestration_cluster_user" "alice" {
+  provider = orchestration.production
   username = "alice"
   email    = "alice@example.com"
 }
@@ -64,16 +78,16 @@ resource "camundacluster_user" "alice" {
 
 | Resource | Description |
 |---|---|
-| `camundacluster_user` | Identity user |
-| `camundacluster_group` | Identity group |
-| `camundacluster_role` | Identity role |
-| `camundacluster_tenant` | Tenant |
-| `camundacluster_authorization` | Authorization assignment |
-| `camundacluster_mapping_rule` | Identity mapping rule |
-| `camundacluster_cluster_variable` | Cluster variable (global or tenant scoped) |
-| `camundacluster_group_member_user`, `_client`, `_mapping_rule` | Assign a user, client or mapping rule to a group |
-| `camundacluster_role_member_user`, `_client`, `_group`, `_mapping_rule` | Assign a user, client, group or mapping rule to a role |
-| `camundacluster_tenant_member_user`, `_client`, `_group`, `_role`, `_mapping_rule` | Assign a user, client, group, role or mapping rule to a tenant |
+| `orchestration_cluster_user` | Identity user |
+| `orchestration_cluster_group` | Identity group |
+| `orchestration_cluster_role` | Identity role |
+| `orchestration_cluster_tenant` | Tenant |
+| `orchestration_cluster_authorization` | Authorization assignment |
+| `orchestration_cluster_mapping_rule` | Identity mapping rule |
+| `orchestration_cluster_cluster_variable` | Cluster variable (global or tenant scoped) |
+| `orchestration_cluster_group_member_user`, `_client`, `_mapping_rule` | Assign a user, client or mapping rule to a group |
+| `orchestration_cluster_role_member_user`, `_client`, `_group`, `_mapping_rule` | Assign a user, client, group or mapping rule to a role |
+| `orchestration_cluster_tenant_member_user`, `_client`, `_group`, `_role`, `_mapping_rule` | Assign a user, client, group, role or mapping rule to a tenant |
 
 The API has no standalone client resource: clients exist only as members of groups, roles and
 tenants, so they are managed through the `*_member_client` resources.
@@ -82,13 +96,13 @@ tenants, so they are managed through the `*_member_client` resources.
 
 | Data source | Looks up |
 |---|---|
-| `camundacluster_user` | A user by username |
-| `camundacluster_group` | A group by name |
-| `camundacluster_role` | A role by name |
-| `camundacluster_tenant` | A tenant by ID or name |
-| `camundacluster_mapping_rule` | A mapping rule by ID |
-| `camundacluster_authorization` | An authorization by key |
-| `camundacluster_cluster_topology` | The cluster topology |
+| `orchestration_cluster_user` | A user by username |
+| `orchestration_cluster_group` | A group by name |
+| `orchestration_cluster_role` | A role by name |
+| `orchestration_cluster_tenant` | A tenant by ID or name |
+| `orchestration_cluster_mapping_rule` | A mapping rule by ID |
+| `orchestration_cluster_authorization` | An authorization by key |
+| `orchestration_cluster_cluster_topology` | The cluster topology |
 
 ## Eventual consistency
 
@@ -131,7 +145,7 @@ faster feedback when a data source looks up something that does not exist (such 
 polling for the full timeout before reporting not-found):
 
 ```hcl
-provider "camundacluster" {
+provider "orchestration" {
   url                 = "https://cluster.example.com/v2"
   consistency_timeout = "2m"
 }
