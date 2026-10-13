@@ -18,7 +18,7 @@ terraform {
 }
 ```
 
-The local name must be `orchestration`. Terraform derives a resource's provider from the part of its type name before the first underscore, so `orchestration_cluster_*` types only match a provider with the local name `orchestration`. A hyphenated local name such as `orchestration-cluster` (as the registry's "Use Provider" snippet may show) does not match any resource type.
+Use the local name `orchestration`. Terraform derives a resource's provider from the part of its type name before the first underscore, so `orchestration_cluster_*` types select a provider with the local name `orchestration` implicitly. Another local name, such as the hyphenated `orchestration-cluster` that the registry's "Use Provider" snippet may show, only works if every resource and data source sets the `provider` meta-argument explicitly (`provider = orchestration-cluster`); otherwise Terraform reports a missing `hashicorp/orchestration` provider.
 
 ```hcl
 provider "orchestration" {
