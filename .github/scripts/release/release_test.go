@@ -218,6 +218,15 @@ func TestCreateTag(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects an existing lightweight tag, even on the same commit", func(t *testing.T) {
+		mustRun(t, r.g, "tag", "v2.0.0", r.second)
+
+		_, err := r.g.createTag("v2.0.0", r.second)
+		if err == nil || !strings.Contains(err.Error(), "lightweight") {
+			t.Fatalf("createTag = %v, want a lightweight tag error", err)
+		}
+	})
+
 	t.Run("rejects an existing tag on a different commit", func(t *testing.T) {
 		_, err := r.g.createTag("v1.2.3", r.first)
 		if err == nil {

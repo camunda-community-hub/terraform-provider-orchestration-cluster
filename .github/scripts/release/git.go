@@ -42,12 +42,22 @@ func (g git) tags() ([]string, error) {
 }
 
 // createTag makes sure the annotated tag exists on sha and has been pushed to origin. It is
-// safe to run again after a later step failed: an existing tag is reused if it points at sha
-// and rejected if it points anywhere else. It reports whether it created and pushed the tag.
+// safe to run again after a later step failed: an existing annotated tag is reused if it points
+// at sha, and rejected if it points anywhere else or is a lightweight tag. It reports whether
+// it created and pushed the tag.
 func (g git) createTag(tag, sha string) (created bool, err error) {
 	ref := "refs/tags/" + tag
 
 	if _, err := g.run("rev-parse", "-q", "--verify", ref); err == nil {
+		// rev-list peels lightweight and annotated tags alike, so check the kind separately.
+		kind, err := g.run("cat-file", "-t", ref)
+		if err != nil {
+			return false, err
+		}
+		if kind != "tag" {
+			return false, fmt.Errorf("tag %s already exists as a lightweight tag, expected an annotated tag", tag)
+		}
+
 		existing, err := g.run("rev-list", "-n", "1", ref)
 		if err != nil {
 			return false, err
