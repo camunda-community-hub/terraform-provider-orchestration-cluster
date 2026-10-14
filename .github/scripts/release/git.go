@@ -41,43 +41,54 @@ func (g git) tags() ([]string, error) {
 	return strings.Split(out, "\n"), nil
 }
 
-// createTag makes sure the annotated tag exists on sha and has been pushed to origin. It is
-// safe to run again after a later step failed: an existing annotated tag is reused if it points
-// at sha, and rejected if it points anywhere else or is a lightweight tag. It reports whether
-// it created and pushed the tag.
+// createTag makes sure the annotated tag exists on sha locally and on origin. It is safe to run
+// again after a later step failed: an existing annotated tag is reused if it points at sha, and
+// rejected if it points anywhere else or is a lightweight tag. The tag is pushed in both cases:
+// pushing a tag that origin already has with the same object does nothing, a missing one is
+// created, and a different one is rejected. It reports whether it created the tag locally.
 func (g git) createTag(tag, sha string) (created bool, err error) {
 	ref := "refs/tags/" + tag
 
-	if _, err := g.run("rev-parse", "-q", "--verify", ref); err == nil {
-		// rev-list peels lightweight and annotated tags alike, so check the kind separately.
-		kind, err := g.run("cat-file", "-t", ref)
-		if err != nil {
-			return false, err
+	if _, err := g.run("rev-parse", "-q", "--verify", ref); err != nil {
+		for _, args := range [][]string{
+			{"config", "user.name", "github-actions[bot]"},
+			{"config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"},
+			{"tag", "-a", tag, "-m", tag, sha},
+		} {
+			if _, err := g.run(args...); err != nil {
+				return false, err
+			}
 		}
-		if kind != "tag" {
-			return false, fmt.Errorf("tag %s already exists as a lightweight tag, expected an annotated tag", tag)
-		}
-
-		existing, err := g.run("rev-list", "-n", "1", ref)
-		if err != nil {
-			return false, err
-		}
-		if existing != sha {
-			return false, fmt.Errorf("tag %s already exists on %s, not on %s", tag, existing, sha)
-		}
-		return false, nil
+		created = true
+	} else if err := g.checkExistingTag(tag, ref, sha); err != nil {
+		return false, err
 	}
 
-	for _, args := range [][]string{
-		{"config", "user.name", "github-actions[bot]"},
-		{"config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"},
-		{"tag", "-a", tag, "-m", tag, sha},
-		{"push", "origin", ref},
-	} {
-		if _, err := g.run(args...); err != nil {
-			return false, err
-		}
+	if _, err := g.run("push", "origin", ref); err != nil {
+		return created, err
 	}
 
-	return true, nil
+	return created, nil
+}
+
+// checkExistingTag requires the existing tag to be an annotated tag that points at sha.
+func (g git) checkExistingTag(tag, ref, sha string) error {
+	// rev-list peels lightweight and annotated tags alike, so check the kind separately.
+	kind, err := g.run("cat-file", "-t", ref)
+	if err != nil {
+		return err
+	}
+	if kind != "tag" {
+		return fmt.Errorf("tag %s already exists as a lightweight tag, expected an annotated tag", tag)
+	}
+
+	existing, err := g.run("rev-list", "-n", "1", ref)
+	if err != nil {
+		return err
+	}
+	if existing != sha {
+		return fmt.Errorf("tag %s already exists on %s, not on %s", tag, existing, sha)
+	}
+
+	return nil
 }

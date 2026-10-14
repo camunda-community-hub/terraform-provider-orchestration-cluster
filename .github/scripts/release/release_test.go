@@ -239,6 +239,33 @@ func TestCreateTag(t *testing.T) {
 		}
 	})
 
+	t.Run("pushes an existing local tag that origin does not have", func(t *testing.T) {
+		mustRun(t, r.g, "-c", "user.name=test", "-c", "user.email=test@example.com", "tag", "-a", "v4.0.0", "-m", "v4.0.0", r.second)
+
+		created, err := r.g.createTag("v4.0.0", r.second)
+		if err != nil || created {
+			t.Fatalf("createTag = %v, %v; want reused without error", created, err)
+		}
+		if got := mustRun(t, r.remote, "rev-list", "-n", "1", "refs/tags/v4.0.0"); got != r.second {
+			t.Errorf("remote tag points at %s, want %s", got, r.second)
+		}
+	})
+
+	t.Run("rejects an existing local tag when origin has a different one", func(t *testing.T) {
+		tagger := []string{"-c", "user.name=test", "-c", "user.email=test@example.com"}
+		mustRun(t, r.g, append(tagger, "tag", "-a", "v3.0.0", "-m", "first", r.first)...)
+		mustRun(t, r.g, "push", "origin", "refs/tags/v3.0.0")
+		mustRun(t, r.g, "tag", "-d", "v3.0.0")
+		mustRun(t, r.g, append(tagger, "tag", "-a", "v3.0.0", "-m", "second", r.second)...)
+
+		if _, err := r.g.createTag("v3.0.0", r.second); err == nil {
+			t.Fatal("createTag succeeded although origin has a different tag with that name")
+		}
+		if got := mustRun(t, r.remote, "rev-list", "-n", "1", "refs/tags/v3.0.0"); got != r.first {
+			t.Errorf("remote tag moved to %s, want it to stay on %s", got, r.first)
+		}
+	})
+
 	t.Run("rejects an existing tag on a different commit", func(t *testing.T) {
 		_, err := r.g.createTag("v1.2.3", r.first)
 		if err == nil {

@@ -5,7 +5,8 @@
 //	release next-version     compute the next version from the latest vMAJOR.MINOR.PATCH tag
 //	                         (pre-release tags are ignored) and RELEASE_TYPE
 //	release check-changelog  require a dated CHANGELOG.md heading for VERSION
-//	release create-tag       create and push the tag VERSION on GITHUB_SHA, idempotently
+//	release create-tag       create the tag VERSION on GITHUB_SHA if needed and push it,
+//	                         idempotently
 //
 // Inputs are read from the environment, as set by the workflow: RELEASE_TYPE, DRY_RUN,
 // VERSION, GITHUB_REF, GITHUB_SHA, GITHUB_OUTPUT and GITHUB_STEP_SUMMARY. Run it from the
@@ -114,7 +115,7 @@ func runCreateTag(getenv func(string) string, g git, stdout io.Writer) error {
 	if created {
 		fmt.Fprintf(stdout, "Created and pushed tag %s on %s\n", tag, sha)
 	} else {
-		fmt.Fprintf(stdout, "Tag %s already points at %s, reusing it\n", tag, sha)
+		fmt.Fprintf(stdout, "Tag %s already points at %s, reusing it and making sure origin has it\n", tag, sha)
 	}
 	return nil
 }
