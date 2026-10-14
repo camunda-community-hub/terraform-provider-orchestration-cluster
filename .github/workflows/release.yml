@@ -27,10 +27,10 @@ on:
         type: boolean
         default: false
 
-# Releases need permissions to read and write the repository contents.
-# GitHub considers creating releases and uploading assets as writing contents.
+# Jobs only read the repository by default. Only the release job, which pushes the tag and
+# creates the release, is granted write access (GitHub considers both writing contents).
 permissions:
-  contents: write
+  contents: read
 
 # Never run two releases at the same time.
 concurrency:
@@ -77,6 +77,8 @@ jobs:
     name: Release
     needs: [prepare, ci]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
