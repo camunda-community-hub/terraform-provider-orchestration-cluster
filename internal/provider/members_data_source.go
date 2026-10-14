@@ -139,14 +139,15 @@ func (d *membersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	// projection lags for longer than one poll interval. A missing owner is treated as pending
 	// and reported as not found if it never appears.
 	var previous map[string][]string
-	ownerFound := false
+	ownerMissing := false
 	lists, err := waitForConsistency(ctx, d.client, fmt.Sprintf("%s %q members", def.ownerLabel, owner), func() (map[string][]string, bool, error) {
+		ownerMissing = false
 		status, err := def.getOwner(ctx, d.client, owner)
 		if err != nil {
 			return nil, false, err
 		}
-		ownerFound = status == http.StatusOK
 		if status == http.StatusNotFound {
+			ownerMissing = true
 			previous = nil
 			return nil, false, nil
 		}
@@ -157,6 +158,7 @@ func (d *membersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		current, err := d.readAll(ctx, owner)
 		if err != nil {
 			if err.Error() == "not_found" {
+				ownerMissing = true
 				previous = nil
 				return nil, false, nil
 			}
@@ -167,7 +169,7 @@ func (d *membersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return current, stable, nil
 	})
 	if err != nil {
-		if !ownerFound {
+		if ownerMissing {
 			resp.Diagnostics.AddError("Not Found", fmt.Sprintf("No %s found with ID '%s': %s", def.ownerLabel, owner, err))
 			return
 		}
