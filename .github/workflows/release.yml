@@ -1,19 +1,15 @@
 # Terraform Provider release workflow.
 name: Release
 
-# There are two ways to release:
+# Releases are made only by running this workflow manually (Actions > Release > Run workflow)
+# from the default branch and choosing the kind of release. It computes the next version from
+# the latest v* tag, requires a dated changelog entry, runs the full CI on the commit, creates
+# the tag, and then builds, signs and publishes the release. Pushing a tag by hand does not
+# release anything.
 #
-# 1. Run this workflow manually (Actions > Release > Run workflow) from the default branch and
-#    choose the kind of release. It computes the next version from the latest v* tag, runs the
-#    full CI on the commit, creates the tag, and then builds, signs and publishes the release.
-#
-# 2. Push a tag that matches the pattern "v*" (e.g. v0.1.0). This skips the steps above and
-#    goes straight to building and publishing.
-#
-# The tag created by (1) is pushed with the default GITHUB_TOKEN, and pushes made with that
-# token do not start other workflow runs. That is intentional: the release job below runs in
-# the same workflow run, so nothing is released twice. Do not replace the token with a personal
-# access token, as that would start a second release run for the same tag.
+# The tag is pushed with the default GITHUB_TOKEN, and pushes made with that token do not start
+# other workflow runs. That is intentional: the release job below runs in the same workflow run,
+# so nothing is released twice. Do not replace the token with a personal access token.
 on:
   workflow_dispatch:
     inputs:
@@ -30,9 +26,6 @@ on:
         description: 'Only compute the version and check the preconditions: no CI run, no tag, no release'
         type: boolean
         default: false
-  push:
-    tags:
-      - 'v*'
 
 # Releases need permissions to read and write the repository contents.
 # GitHub considers creating releases and uploading assets as writing contents.
@@ -47,7 +40,6 @@ concurrency:
 jobs:
   prepare:
     name: Compute version
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.next.outputs.version }}
@@ -77,18 +69,13 @@ jobs:
   ci:
     name: CI
     needs: prepare
-    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+    # A dry run stops here: no CI, and so no release.
+    if: ${{ !inputs.dry_run }}
     uses: ./.github/workflows/test.yml
 
   release:
     name: Release
     needs: [prepare, ci]
-    # Tag pushes run this job directly. Manual runs need the checks and the CI to have passed.
-    if: >-
-      ${{ always() && (
-        github.event_name == 'push' ||
-        (needs.prepare.result == 'success' && needs.ci.result == 'success')
-      ) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -102,7 +89,6 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
       - name: Create and push the tag
-        if: github.event_name == 'workflow_dispatch'
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: go run ./.github/scripts/release create-tag
