@@ -100,6 +100,7 @@ func (d *ClusterVariableDataSource) Read(ctx context.Context, req datasource.Rea
 	notFound := false
 	apiResp, err := readWithRetry(ctx, d.client, fmt.Sprintf("cluster variable %q", name),
 		func() (clusterVariableResponse, error) {
+			notFound = false
 			return getClusterVariable(ctx, d.client, tenantId, name)
 		},
 		func(r clusterVariableResponse) (bool, error) {
