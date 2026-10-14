@@ -77,7 +77,7 @@ func (d *TenantDataSource) ValidateConfig(ctx context.Context, req datasource.Va
 	if data.TenantId.IsNull() == data.Name.IsNull() {
 		resp.Diagnostics.AddError(
 			"Invalid Lookup Configuration",
-			"Exactly one of `tenant_id` or `name` must be set. "+docsLinkMarkdown(docTenants),
+			"Exactly one of `tenant_id` or `name` must be set.",
 		)
 	}
 }
