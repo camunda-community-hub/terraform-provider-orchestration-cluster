@@ -72,7 +72,7 @@ make testacc
 
 ## Releasing
 
-Releases are cut by pushing a `v*` tag. `.github/workflows/release.yml` then runs GoReleaser (`.goreleaser.yml`), which builds the provider for all platforms, signs the checksums with GPG, and publishes a GitHub release with the registry manifest attached. The Terraform Registry picks the release up through its webhook.
+Releases are cut by running the Release workflow (see "Cutting a release" below), which creates the `v*` tag. `.github/workflows/release.yml` then runs GoReleaser (`.goreleaser.yml`) in the same run, which builds the provider for all platforms, signs the checksums with GPG, and publishes a GitHub release with the registry manifest attached. The Terraform Registry picks the release up through its webhook.
 
 The provider is published as `camunda-community-hub/orchestration-cluster`
 (`source = "camunda-community-hub/orchestration-cluster"` in `required_providers`). The registry derives that name from the repository name (`terraform-provider-<name>`) and the GitHub organization.
@@ -81,23 +81,29 @@ The provider is published as `camunda-community-hub/orchestration-cluster`
 
 1. **License:** `LICENSE` (Apache 2.0) must be present on the default branch.
 2. **Visibility:** the repository is public, which the registry requires: the public registry only lists public GitHub repositories. Keep it public.
-3. **Signing key:** generate a dedicated GPG key for release signing and keep the private key out of the repository.
-   ```
-   gpg --full-generate-key
-   gpg --armor --export-secret-keys <key-id>   # value for GPG_PRIVATE_KEY
-   gpg --armor --export <key-id>               # public key for the registry
-   ```
-4. **Repository secrets:** add `GPG_PRIVATE_KEY` (the armored private key) and `PASSPHRASE` (its passphrase). `release.yml` imports the key and passes its fingerprint to GoReleaser as `GPG_FINGERPRINT`.
-5. **Registry:** sign in to [registry.terraform.io](https://registry.terraform.io) with GitHub, authorize the `camunda-community-hub` organization, add the armored **public** key under the organization's signing keys, and publish this repository as a provider. After that, new `v*` releases are ingested automatically.
+3. **Signing key:** the release signing key is issued from the central key source, not generated per repository. Do not create a key for this repository, and keep the private key out of the repository.
+4. **Repository secrets:** set `GPG_PRIVATE_KEY` (the armored private key) and `PASSPHRASE` (its passphrase) from the key you were issued. `release.yml` imports the key and passes its fingerprint to GoReleaser as `GPG_FINGERPRINT`.
+5. **Registry:** the matching public key has to be registered for the `camunda-community-hub` namespace on [registry.terraform.io](https://registry.terraform.io), which needs an organization admin. The provider is published once through the registry's Publish > Provider page; after that, new releases are ingested automatically.
 
 ### Cutting a release
 
-1. Make sure CI is green on `main` at the commit to be tagged.
-2. In `CHANGELOG.md`, replace `(Unreleased)` on the version heading with the release date and review the entries.
-3. Optionally dry-run the build locally (no signing, nothing published; GoReleaser is run with `go run`, so nothing is added to `go.mod`):
-   ```
-   go run github.com/goreleaser/goreleaser/v2@v2 release --snapshot --clean --skip=sign,publish
-   ```
-   The binaries and archives land in `dist/`, which is git-ignored.
-4. Tag and push, for example `git tag v0.1.0 && git push origin v0.1.0`.
-5. Check that the `Release` workflow succeeded, that the GitHub release has the signed checksums and the `*_manifest.json`, and that `terraform init` downloads the new version from the registry.
+1. In `CHANGELOG.md`, add the entry for the next version with its release date, for example `## 0.3.0 (October 20, 2026)`, and merge it to `main`. The release archives ship `CHANGELOG.md`, and the workflow refuses to release a version without a dated entry.
+2. Go to Actions > Release > Run workflow, keep the branch `main`, and choose the release type: `patch`, `minor` or `major`. The workflow bumps the latest `vMAJOR.MINOR.PATCH` tag accordingly (pre-release tags such as `v1.0.0-rc.1` are ignored) (for example `v0.2.0` becomes `v0.2.1`, `v0.3.0` or `v1.0.0`). While the project is `0.x`, breaking changes go into a `minor` release. Tick `dry_run` first if you want to see the computed version and have the preconditions checked without releasing anything.
+3. The workflow then runs the full CI on the commit, creates the annotated tag, and builds, signs and publishes the release. It stops at the first failing step. If the CI fails, no tag exists yet, so just run the workflow again. If a step after the tag was pushed fails, use "Re-run failed jobs" on that same run: the tag step reuses the existing tag. Do not start a new run in that case, because the tag is now the latest version and a new run would compute the one after it.
+4. Check that the `Release` workflow succeeded, that the GitHub release has the signed checksums and the `*_manifest.json`, and that `terraform init` downloads the new version from the registry.
+
+The steps of the workflow (checking the branch, computing the version, checking the changelog, creating the tag) are a small Go program in `.github/scripts/release`, not inline shell. It has unit tests, including tests against scratch git repositories, which CI runs with `go test ./.github/scripts/...` (a plain `go test ./...` skips directories that start with a dot). To see what version a release type would produce, run it from the repository root; it prints the result and does not change anything:
+
+```
+RELEASE_TYPE=minor go run ./.github/scripts/release next-version
+```
+
+Releases only happen through this workflow. Pushing a `v*` tag by hand does not release anything: nothing listens for tag pushes, so there is no path around the CI run and the checks above. A hand-pushed tag would still count as the latest version when the next one is computed, so delete it if it was a mistake.
+
+The tag created by the workflow is pushed with the default `GITHUB_TOKEN`, which does not start other workflow runs, so the tag does not trigger a second release. Keep it that way: using a personal access token for the push would. The registry webhook listens for the GitHub release that GoReleaser creates, not for tags, so it is not affected.
+
+Optionally dry-run the build locally (no signing, nothing published; GoReleaser is run with `go run`, so nothing is added to `go.mod`):
+```
+go run github.com/goreleaser/goreleaser/v2@v2 release --snapshot --clean --skip=sign,publish
+```
+The binaries and archives land in `dist/`, which is git-ignored.

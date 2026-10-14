@@ -1,30 +1,99 @@
 # Terraform Provider release workflow.
 name: Release
 
-# This GitHub action creates a release when a tag that matches the pattern
-# "v*" (e.g. v0.1.0) is created.
+# Releases are made only by running this workflow manually (Actions > Release > Run workflow)
+# from the default branch and choosing the kind of release. It computes the next version from
+# the latest vMAJOR.MINOR.PATCH tag (pre-release tags are ignored), requires a dated changelog
+# entry, runs the full CI on the commit, creates the tag, and then builds, signs and publishes
+# the release. Pushing a tag by hand does not release anything.
+#
+# The tag is pushed with the default GITHUB_TOKEN, and pushes made with that token do not start
+# other workflow runs. That is intentional: the release job below runs in the same workflow run,
+# so nothing is released twice. Do not replace the token with a personal access token.
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Version bump applied to the latest vMAJOR.MINOR.PATCH tag (pre-release tags are ignored)'
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Only compute the version and check the preconditions: no CI run, no tag, no release'
+        type: boolean
+        default: false
 
-# Releases need permissions to read and write the repository contents.
-# GitHub considers creating releases and uploading assets as writing contents.
+# Jobs only read the repository by default. Only the release job, which pushes the tag and
+# creates the release, is granted write access (GitHub considers both writing contents).
 permissions:
-  contents: write
+  contents: read
+
+# Never run two releases at the same time.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  goreleaser:
+  prepare:
+    name: Compute version
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The tags are needed to find the latest version.
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      # The steps below are in .github/scripts/release (see its doc comment and tests).
+      - name: Require the default branch
+        run: go run ./.github/scripts/release require-main
+      - name: Compute the next version
+        id: next
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: go run ./.github/scripts/release next-version
+      - name: Require a dated changelog entry
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: go run ./.github/scripts/release check-changelog
+
+  ci:
+    name: CI
+    needs: prepare
+    # A dry run stops here: no CI, and so no release.
+    if: ${{ !inputs.dry_run }}
+    uses: ./.github/workflows/test.yml
+
+  release:
+    name: Release
+    needs: [prepare, ci]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The commit the CI ran on, not whatever main points to by now.
+          ref: ${{ github.sha }}
           # Allow goreleaser to access older tag information.
           fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: 'go.mod'
           cache: true
+      - name: Create and push the tag
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: go run ./.github/scripts/release create-tag
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
         id: import_gpg
