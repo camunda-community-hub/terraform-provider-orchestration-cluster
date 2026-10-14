@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -52,6 +53,7 @@ func (d *ClusterVariableDataSource) Schema(ctx context.Context, req datasource.S
 			"tenant_id": schema.StringAttribute{
 				MarkdownDescription: "The ID of the tenant the variable is scoped to. Omit it to look up a global variable.",
 				Optional:            true,
+				Validators:          []validator.String{nonEmptyStringValidator{}},
 			},
 			"value": schema.StringAttribute{
 				MarkdownDescription: "The value of the variable as a JSON document, the same way the `orchestration_cluster_cluster_variable` resource reports it. Use `jsondecode()` to read it.",
