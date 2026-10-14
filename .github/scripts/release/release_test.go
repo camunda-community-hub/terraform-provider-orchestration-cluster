@@ -94,6 +94,14 @@ func TestCheckChangelog(t *testing.T) {
 		"## 0.1.0 (October 8, 2026) extra",
 		"",
 		"## 0x2x0 (October 13, 2026)",
+		"",
+		"## 0.5.0 (Octember 99, 2026)",
+		"",
+		"## 0.5.1 (February 30, 2026)",
+		"",
+		"## 0.5.2 (October 0, 2026)",
+		"",
+		"## 0.5.3 (February 28, 2027)",
 	}, "\n")
 
 	tests := []struct {
@@ -108,6 +116,10 @@ func TestCheckChangelog(t *testing.T) {
 		{"trailing text after the date", "v0.1.0", true},
 		{"dots are literal, not wildcards", "v0.2.0x", true},
 		{"version with a similar prefix", "v0.2", true},
+		{"month that does not exist", "v0.5.0", true},
+		{"day that does not exist in the month", "v0.5.1", true},
+		{"day zero", "v0.5.2", true},
+		{"valid date in another year", "v0.5.3", false},
 	}
 
 	for _, tt := range tests {

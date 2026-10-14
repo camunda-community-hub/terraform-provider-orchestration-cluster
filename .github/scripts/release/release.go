@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // version is a strict MAJOR.MINOR.PATCH release version.
@@ -90,15 +91,25 @@ func requireMain(ref string) error {
 	return nil
 }
 
+// changelogDateLayout is how release dates are written in CHANGELOG.md, for example
+// "October 13, 2026".
+const changelogDateLayout = "January 2, 2006"
+
 // checkChangelog requires a heading of the form "## 0.2.0 (October 13, 2026)" for the given
-// version tag. The release archives ship CHANGELOG.md, so a missing or undated entry such as
-// "(Unreleased)" is an error.
+// version tag, where the date is an actual calendar date. The release archives ship
+// CHANGELOG.md, so a missing or undated entry such as "(Unreleased)" is an error.
 func checkChangelog(changelog, tag string) error {
 	plain := strings.TrimPrefix(tag, "v")
-	heading := regexp.MustCompile(`(?m)^## ` + regexp.QuoteMeta(plain) + ` \([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4}\)$`)
+	heading := regexp.MustCompile(`(?m)^## ` + regexp.QuoteMeta(plain) + ` \(([A-Z][a-z]+ [0-9]{1,2}, [0-9]{4})\)$`)
 
-	if !heading.MatchString(changelog) {
+	m := heading.FindStringSubmatch(changelog)
+	if m == nil {
 		return fmt.Errorf("CHANGELOG.md needs a dated heading for %s, for example '## %s (October 13, 2026)'", plain, plain)
 	}
+
+	if _, err := time.Parse(changelogDateLayout, m[1]); err != nil {
+		return fmt.Errorf("CHANGELOG.md heading for %s has the date %q, which is not a valid date like 'October 13, 2026'", plain, m[1])
+	}
+
 	return nil
 }
