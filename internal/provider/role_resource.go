@@ -41,7 +41,7 @@ func (r *RoleResource) Metadata(ctx context.Context, req resource.MetadataReques
 
 func (r *RoleResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A Camunda cluster role",
+		MarkdownDescription: "A role inside a Camunda cluster. " + docsLinkMarkdown(docRoles),
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

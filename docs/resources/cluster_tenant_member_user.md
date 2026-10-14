@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_tenant_member_user Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a user to a Camunda cluster tenant
+  Assigns a user to a tenant inside a Camunda cluster. See the Camunda documentation on tenants https://docs.camunda.io/docs/components/admin/tenant/ and users https://docs.camunda.io/docs/components/admin/user/.
 ---
 
 # orchestration_cluster_tenant_member_user (Resource)
 
-Assigns a user to a Camunda cluster tenant
+Assigns a user to a tenant inside a Camunda cluster. See the Camunda documentation on [tenants](https://docs.camunda.io/docs/components/admin/tenant/) and [users](https://docs.camunda.io/docs/components/admin/user/).
 
 ## Example Usage
 

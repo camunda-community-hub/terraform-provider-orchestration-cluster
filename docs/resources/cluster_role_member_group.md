@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_role_member_group Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a group to a Camunda cluster role
+  Assigns a group to a role inside a Camunda cluster. See the Camunda documentation on roles https://docs.camunda.io/docs/components/admin/role/ and groups https://docs.camunda.io/docs/components/admin/group/.
 ---
 
 # orchestration_cluster_role_member_group (Resource)
 
-Assigns a group to a Camunda cluster role
+Assigns a group to a role inside a Camunda cluster. See the Camunda documentation on [roles](https://docs.camunda.io/docs/components/admin/role/) and [groups](https://docs.camunda.io/docs/components/admin/group/).
 
 ## Example Usage
 

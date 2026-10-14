@@ -45,7 +45,7 @@ func (r *TenantResource) Metadata(ctx context.Context, req resource.MetadataRequ
 
 func (r *TenantResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A Camunda cluster tenant",
+		MarkdownDescription: "A tenant inside a Camunda cluster. " + docsLinkMarkdown(docTenants),
 
 		Attributes: map[string]schema.Attribute{
 			"description": schema.StringAttribute{

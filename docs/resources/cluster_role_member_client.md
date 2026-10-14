@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_role_member_client Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a client to a Camunda cluster role
+  Assigns a client to a role inside a Camunda cluster. See the Camunda documentation on roles https://docs.camunda.io/docs/components/admin/role/ and clients https://docs.camunda.io/docs/components/admin/client/.
 ---
 
 # orchestration_cluster_role_member_client (Resource)
 
-Assigns a client to a Camunda cluster role
+Assigns a client to a role inside a Camunda cluster. See the Camunda documentation on [roles](https://docs.camunda.io/docs/components/admin/role/) and [clients](https://docs.camunda.io/docs/components/admin/client/).
 
 ## Example Usage
 

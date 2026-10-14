@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_group Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  A Camunda cluster group
+  A group inside a Camunda cluster. Groups bundle users, clients and mapping rules within that single cluster so that roles, tenants and authorizations can be assigned to them together. See the Camunda documentation on groups https://docs.camunda.io/docs/components/admin/group/.
 ---
 
 # orchestration_cluster_group (Resource)
 
-A Camunda cluster group
+A group inside a Camunda cluster. Groups bundle users, clients and mapping rules within that single cluster so that roles, tenants and authorizations can be assigned to them together. See the Camunda documentation on [groups](https://docs.camunda.io/docs/components/admin/group/).
 
 ## Example Usage
 

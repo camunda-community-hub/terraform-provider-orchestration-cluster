@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_cluster_topology Data Source - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Expose the cluster status of a Camunda cluster
+  Exposes the status and topology of a Camunda cluster. See the Camunda documentation on cluster administration https://docs.camunda.io/docs/components/admin/cluster-admin/.
 ---
 
 # orchestration_cluster_cluster_topology (Data Source)
 
-Expose the cluster status of a Camunda cluster
+Exposes the status and topology of a Camunda cluster. See the Camunda documentation on [cluster administration](https://docs.camunda.io/docs/components/admin/cluster-admin/).
 
 
 

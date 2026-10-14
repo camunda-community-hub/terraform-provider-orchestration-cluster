@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_tenant Data Source - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Looks up a Camunda cluster tenant by tenant ID or by name. Exactly one of tenant_id or name must be set.
+  Looks up a tenant inside a Camunda cluster by tenant ID or by name. Exactly one of tenant_id or name must be set. See the Camunda documentation on tenants https://docs.camunda.io/docs/components/admin/tenant/.
 ---
 
 # orchestration_cluster_tenant (Data Source)
 
-Looks up a Camunda cluster tenant by tenant ID or by name. Exactly one of `tenant_id` or `name` must be set.
+Looks up a tenant inside a Camunda cluster by tenant ID or by name. Exactly one of `tenant_id` or `name` must be set. See the Camunda documentation on [tenants](https://docs.camunda.io/docs/components/admin/tenant/).
 
 ## Example Usage
 

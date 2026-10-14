@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_tenant Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  A Camunda cluster tenant
+  A tenant inside a Camunda cluster. See the Camunda documentation on tenants https://docs.camunda.io/docs/components/admin/tenant/.
 ---
 
 # orchestration_cluster_tenant (Resource)
 
-A Camunda cluster tenant
+A tenant inside a Camunda cluster. See the Camunda documentation on [tenants](https://docs.camunda.io/docs/components/admin/tenant/).
 
 ## Example Usage
 

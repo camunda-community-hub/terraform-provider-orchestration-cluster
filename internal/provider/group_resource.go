@@ -41,7 +41,7 @@ func (r *GroupResource) Metadata(ctx context.Context, req resource.MetadataReque
 
 func (r *GroupResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A Camunda cluster group",
+		MarkdownDescription: "A group inside a Camunda cluster. Groups bundle users, clients and mapping rules within that single cluster so that roles, tenants and authorizations can be assigned to them together. " + docsLinkMarkdown(docGroups),
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

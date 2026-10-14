@@ -57,7 +57,7 @@ func (r *ClusterVariableResource) Metadata(ctx context.Context, req resource.Met
 
 func (r *ClusterVariableResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A Camunda cluster variable, either global or scoped to a single tenant. " +
+		MarkdownDescription: "A variable inside a Camunda cluster, either global or scoped to a single tenant. " + docsLinkMarkdown(docClusterVars) + " " +
 			"The value is stored in the cluster's state and is **not** marked sensitive: do not store secrets in it.",
 
 		Attributes: map[string]schema.Attribute{

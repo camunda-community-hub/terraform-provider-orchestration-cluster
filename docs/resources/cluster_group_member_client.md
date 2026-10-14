@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_group_member_client Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a client to a Camunda cluster group
+  Assigns a client to a group inside a Camunda cluster. See the Camunda documentation on groups https://docs.camunda.io/docs/components/admin/group/ and clients https://docs.camunda.io/docs/components/admin/client/.
 ---
 
 # orchestration_cluster_group_member_client (Resource)
 
-Assigns a client to a Camunda cluster group
+Assigns a client to a group inside a Camunda cluster. See the Camunda documentation on [groups](https://docs.camunda.io/docs/components/admin/group/) and [clients](https://docs.camunda.io/docs/components/admin/client/).
 
 ## Example Usage
 

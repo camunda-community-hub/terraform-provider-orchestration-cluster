@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_role Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  A Camunda cluster role
+  A role inside a Camunda cluster. See the Camunda documentation on roles https://docs.camunda.io/docs/components/admin/role/.
 ---
 
 # orchestration_cluster_role (Resource)
 
-A Camunda cluster role
+A role inside a Camunda cluster. See the Camunda documentation on [roles](https://docs.camunda.io/docs/components/admin/role/).
 
 ## Example Usage
 

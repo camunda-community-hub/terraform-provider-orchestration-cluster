@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_authorization Data Source - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Looks up a Camunda cluster authorization by its key.
+  Looks up an authorization inside a Camunda cluster by its key. See the Camunda documentation on authorizations https://docs.camunda.io/docs/components/admin/authorization/.
 ---
 
 # orchestration_cluster_authorization (Data Source)
 
-Looks up a Camunda cluster authorization by its key.
+Looks up an authorization inside a Camunda cluster by its key. See the Camunda documentation on [authorizations](https://docs.camunda.io/docs/components/admin/authorization/).
 
 ## Example Usage
 

@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_tenant_member_client Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a client to a Camunda cluster tenant
+  Assigns a client to a tenant inside a Camunda cluster. See the Camunda documentation on tenants https://docs.camunda.io/docs/components/admin/tenant/ and clients https://docs.camunda.io/docs/components/admin/client/.
 ---
 
 # orchestration_cluster_tenant_member_client (Resource)
 
-Assigns a client to a Camunda cluster tenant
+Assigns a client to a tenant inside a Camunda cluster. See the Camunda documentation on [tenants](https://docs.camunda.io/docs/components/admin/tenant/) and [clients](https://docs.camunda.io/docs/components/admin/client/).
 
 ## Example Usage
 

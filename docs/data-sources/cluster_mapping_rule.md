@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_mapping_rule Data Source - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Looks up a Camunda cluster mapping rule by ID.
+  Looks up a mapping rule inside a Camunda cluster by ID. See the Camunda documentation on mapping rules https://docs.camunda.io/docs/components/admin/mapping-rules/.
 ---
 
 # orchestration_cluster_mapping_rule (Data Source)
 
-Looks up a Camunda cluster mapping rule by ID.
+Looks up a mapping rule inside a Camunda cluster by ID. See the Camunda documentation on [mapping rules](https://docs.camunda.io/docs/components/admin/mapping-rules/).
 
 ## Example Usage
 

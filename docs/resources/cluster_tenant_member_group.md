@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_tenant_member_group Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a group to a Camunda cluster tenant
+  Assigns a group to a tenant inside a Camunda cluster. See the Camunda documentation on tenants https://docs.camunda.io/docs/components/admin/tenant/ and groups https://docs.camunda.io/docs/components/admin/group/.
 ---
 
 # orchestration_cluster_tenant_member_group (Resource)
 
-Assigns a group to a Camunda cluster tenant
+Assigns a group to a tenant inside a Camunda cluster. See the Camunda documentation on [tenants](https://docs.camunda.io/docs/components/admin/tenant/) and [groups](https://docs.camunda.io/docs/components/admin/group/).
 
 ## Example Usage
 

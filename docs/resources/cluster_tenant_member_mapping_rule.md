@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_tenant_member_mapping_rule Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a mapping rule to a Camunda cluster tenant
+  Assigns a mapping rule to a tenant inside a Camunda cluster. See the Camunda documentation on tenants https://docs.camunda.io/docs/components/admin/tenant/ and mapping rules https://docs.camunda.io/docs/components/admin/mapping-rules/.
 ---
 
 # orchestration_cluster_tenant_member_mapping_rule (Resource)
 
-Assigns a mapping rule to a Camunda cluster tenant
+Assigns a mapping rule to a tenant inside a Camunda cluster. See the Camunda documentation on [tenants](https://docs.camunda.io/docs/components/admin/tenant/) and [mapping rules](https://docs.camunda.io/docs/components/admin/mapping-rules/).
 
 ## Example Usage
 

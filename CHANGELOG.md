@@ -1,3 +1,10 @@
+## Unreleased
+
+ENHANCEMENTS:
+
+* Every resource and data source page now links to the matching Camunda documentation page.
+* Descriptions now say "inside a Camunda cluster" (for example "A group inside a Camunda cluster") so that `orchestration_cluster_group` and the other entities are not read as a group of clusters. The README no longer labels entities as "Identity", as that component is now called Admin.
+
 ## 0.2.0 (October 13, 2026)
 
 BREAKING CHANGES:

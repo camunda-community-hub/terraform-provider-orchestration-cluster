@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_role_member_mapping_rule Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a mapping rule to a Camunda cluster role
+  Assigns a mapping rule to a role inside a Camunda cluster. See the Camunda documentation on roles https://docs.camunda.io/docs/components/admin/role/ and mapping rules https://docs.camunda.io/docs/components/admin/mapping-rules/.
 ---
 
 # orchestration_cluster_role_member_mapping_rule (Resource)
 
-Assigns a mapping rule to a Camunda cluster role
+Assigns a mapping rule to a role inside a Camunda cluster. See the Camunda documentation on [roles](https://docs.camunda.io/docs/components/admin/role/) and [mapping rules](https://docs.camunda.io/docs/components/admin/mapping-rules/).
 
 ## Example Usage
 

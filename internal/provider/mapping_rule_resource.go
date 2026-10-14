@@ -45,7 +45,7 @@ func (r *MappingRuleResource) Metadata(ctx context.Context, req resource.Metadat
 
 func (r *MappingRuleResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A Camunda cluster mapping rule",
+		MarkdownDescription: "A mapping rule inside a Camunda cluster. " + docsLinkMarkdown(docMappingRules),
 
 		Attributes: map[string]schema.Attribute{
 			"claim_name": schema.StringAttribute{

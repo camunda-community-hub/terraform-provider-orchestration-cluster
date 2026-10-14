@@ -78,12 +78,12 @@ resource "orchestration_cluster_user" "alice" {
 
 | Resource | Description |
 |---|---|
-| `orchestration_cluster_user` | Identity user |
-| `orchestration_cluster_group` | Identity group |
-| `orchestration_cluster_role` | Identity role |
+| `orchestration_cluster_user` | User |
+| `orchestration_cluster_group` | Group inside the cluster |
+| `orchestration_cluster_role` | Role |
 | `orchestration_cluster_tenant` | Tenant |
 | `orchestration_cluster_authorization` | Authorization assignment |
-| `orchestration_cluster_mapping_rule` | Identity mapping rule |
+| `orchestration_cluster_mapping_rule` | Mapping rule |
 | `orchestration_cluster_cluster_variable` | Cluster variable (global or tenant scoped) |
 | `orchestration_cluster_group_member_user`, `_client`, `_mapping_rule` | Assign a user, client or mapping rule to a group |
 | `orchestration_cluster_role_member_user`, `_client`, `_group`, `_mapping_rule` | Assign a user, client, group or mapping rule to a role |

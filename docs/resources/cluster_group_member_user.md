@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_group_member_user Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a user to a Camunda cluster group
+  Assigns a user to a group inside a Camunda cluster. See the Camunda documentation on groups https://docs.camunda.io/docs/components/admin/group/ and users https://docs.camunda.io/docs/components/admin/user/.
 ---
 
 # orchestration_cluster_group_member_user (Resource)
 
-Assigns a user to a Camunda cluster group
+Assigns a user to a group inside a Camunda cluster. See the Camunda documentation on [groups](https://docs.camunda.io/docs/components/admin/group/) and [users](https://docs.camunda.io/docs/components/admin/user/).
 
 ## Example Usage
 
