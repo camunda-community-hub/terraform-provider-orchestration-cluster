@@ -38,7 +38,7 @@ func (d *UserDataSource) Metadata(ctx context.Context, req datasource.MetadataRe
 
 func (d *UserDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A Camunda cluster user",
+		MarkdownDescription: "A user inside a Camunda cluster. " + docsLinkMarkdown(docUsers),
 
 		Attributes: map[string]schema.Attribute{
 			"email": schema.StringAttribute{

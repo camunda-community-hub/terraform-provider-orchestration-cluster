@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_role Data Source - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Looks up a Camunda cluster role by name.
+  Looks up a role inside a Camunda cluster by name. See the Camunda documentation on roles https://docs.camunda.io/docs/components/admin/role/.
 ---
 
 # orchestration_cluster_role (Data Source)
 
-Looks up a Camunda cluster role by name.
+Looks up a role inside a Camunda cluster by name. See the Camunda documentation on [roles](https://docs.camunda.io/docs/components/admin/role/).
 
 ## Example Usage
 

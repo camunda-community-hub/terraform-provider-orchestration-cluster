@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_cluster_variable Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  A Camunda cluster variable, either global or scoped to a single tenant. The value is stored in the cluster's state and is not marked sensitive: do not store secrets in it.
+  A variable inside a Camunda cluster, either global or scoped to a single tenant. See the Camunda documentation on cluster variables https://docs.camunda.io/docs/components/admin/cluster-variables/. The value is stored in the cluster's state and is not marked sensitive: do not store secrets in it.
 ---
 
 # orchestration_cluster_cluster_variable (Resource)
 
-A Camunda cluster variable, either global or scoped to a single tenant. The value is stored in the cluster's state and is **not** marked sensitive: do not store secrets in it.
+A variable inside a Camunda cluster, either global or scoped to a single tenant. See the Camunda documentation on [cluster variables](https://docs.camunda.io/docs/components/admin/cluster-variables/). The value is stored in the cluster's state and is **not** marked sensitive: do not store secrets in it.
 
 ## Example Usage
 

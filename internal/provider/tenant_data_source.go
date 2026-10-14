@@ -39,7 +39,7 @@ func (d *TenantDataSource) Metadata(ctx context.Context, req datasource.Metadata
 
 func (d *TenantDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Looks up a Camunda cluster tenant by tenant ID or by name. Exactly one of `tenant_id` or `name` must be set.",
+		MarkdownDescription: "Looks up a tenant inside a Camunda cluster by tenant ID or by name. Exactly one of `tenant_id` or `name` must be set. " + docsLinkMarkdown(docTenants),
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

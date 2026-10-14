@@ -32,7 +32,7 @@ func (d *AuthorizationDataSource) Metadata(ctx context.Context, req datasource.M
 
 func (d *AuthorizationDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Looks up a Camunda cluster authorization by its key.",
+		MarkdownDescription: "Looks up an authorization inside a Camunda cluster by its key. " + docsLinkMarkdown(docAuthorizations),
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

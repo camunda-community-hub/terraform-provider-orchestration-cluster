@@ -37,7 +37,7 @@ func (d *GroupDataSource) Metadata(ctx context.Context, req datasource.MetadataR
 
 func (d *GroupDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Looks up a Camunda cluster group by name.",
+		MarkdownDescription: "Looks up a group inside a Camunda cluster by name. " + docsLinkMarkdown(docGroups),
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

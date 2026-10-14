@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_authorization Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  A Camunda cluster authorization
+  An authorization inside a Camunda cluster. See the Camunda documentation on authorizations https://docs.camunda.io/docs/components/admin/authorization/.
 ---
 
 # orchestration_cluster_authorization (Resource)
 
-A Camunda cluster authorization
+An authorization inside a Camunda cluster. See the Camunda documentation on [authorizations](https://docs.camunda.io/docs/components/admin/authorization/).
 
 ## Example Usage
 

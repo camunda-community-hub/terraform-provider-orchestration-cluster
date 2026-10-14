@@ -167,7 +167,7 @@ func (r *membershipResource) Schema(ctx context.Context, req resource.SchemaRequ
 	}
 	requiresReplace := []planmodifier.String{stringplanmodifier.RequiresReplace()}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf("Assigns a %s to a Camunda cluster %s", d.memberName(), d.ownerLabel),
+		MarkdownDescription: fmt.Sprintf("Assigns a %s to a %s inside a Camunda cluster. %s", d.memberName(), d.ownerLabel, docsLinkMarkdown(docPageByLabel[d.ownerLabel], docPageByLabel[d.memberLabel])),
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

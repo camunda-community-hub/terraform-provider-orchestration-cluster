@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_user Data Source - Orchestration Cluster"
 subcategory: ""
 description: |-
-  A Camunda cluster user
+  A user inside a Camunda cluster. See the Camunda documentation on users https://docs.camunda.io/docs/components/admin/user/.
 ---
 
 # orchestration_cluster_user (Data Source)
 
-A Camunda cluster user
+A user inside a Camunda cluster. See the Camunda documentation on [users](https://docs.camunda.io/docs/components/admin/user/).
 
 ## Example Usage
 

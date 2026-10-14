@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_group Data Source - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Looks up a Camunda cluster group by name.
+  Looks up a group inside a Camunda cluster by name. See the Camunda documentation on groups https://docs.camunda.io/docs/components/admin/group/.
 ---
 
 # orchestration_cluster_group (Data Source)
 
-Looks up a Camunda cluster group by name.
+Looks up a group inside a Camunda cluster by name. See the Camunda documentation on [groups](https://docs.camunda.io/docs/components/admin/group/).
 
 ## Example Usage
 

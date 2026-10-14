@@ -41,7 +41,7 @@ func (d *ClusterTopologyDataSource) Metadata(ctx context.Context, req datasource
 func (d *ClusterTopologyDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "Expose the cluster status of a Camunda cluster",
+		MarkdownDescription: "Exposes the status and topology of a Camunda cluster. " + docsLinkMarkdown(docClusterAdmin),
 
 		Attributes: map[string]schema.Attribute{
 			"cluster_id": schema.StringAttribute{

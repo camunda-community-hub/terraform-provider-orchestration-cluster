@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_mapping_rule Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  A Camunda cluster mapping rule
+  A mapping rule inside a Camunda cluster. See the Camunda documentation on mapping rules https://docs.camunda.io/docs/components/admin/mapping-rules/.
 ---
 
 # orchestration_cluster_mapping_rule (Resource)
 
-A Camunda cluster mapping rule
+A mapping rule inside a Camunda cluster. See the Camunda documentation on [mapping rules](https://docs.camunda.io/docs/components/admin/mapping-rules/).
 
 ## Example Usage
 

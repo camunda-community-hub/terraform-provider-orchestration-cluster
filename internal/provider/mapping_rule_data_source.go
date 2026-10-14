@@ -36,7 +36,7 @@ func (d *MappingRuleDataSource) Metadata(ctx context.Context, req datasource.Met
 
 func (d *MappingRuleDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Looks up a Camunda cluster mapping rule by ID.",
+		MarkdownDescription: "Looks up a mapping rule inside a Camunda cluster by ID. " + docsLinkMarkdown(docMappingRules),
 
 		Attributes: map[string]schema.Attribute{
 			"claim_name": schema.StringAttribute{

@@ -3,12 +3,12 @@
 page_title: "orchestration_cluster_role_member_user Resource - Orchestration Cluster"
 subcategory: ""
 description: |-
-  Assigns a user to a Camunda cluster role
+  Assigns a user to a role inside a Camunda cluster. See the Camunda documentation on roles https://docs.camunda.io/docs/components/admin/role/ and users https://docs.camunda.io/docs/components/admin/user/.
 ---
 
 # orchestration_cluster_role_member_user (Resource)
 
-Assigns a user to a Camunda cluster role
+Assigns a user to a role inside a Camunda cluster. See the Camunda documentation on [roles](https://docs.camunda.io/docs/components/admin/role/) and [users](https://docs.camunda.io/docs/components/admin/user/).
 
 ## Example Usage
 
