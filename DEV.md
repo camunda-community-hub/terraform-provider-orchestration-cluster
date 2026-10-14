@@ -72,7 +72,7 @@ make testacc
 
 ## Releasing
 
-Releases are cut by pushing a `v*` tag. `.github/workflows/release.yml` then runs GoReleaser (`.goreleaser.yml`), which builds the provider for all platforms, signs the checksums with GPG, and publishes a GitHub release with the registry manifest attached. The Terraform Registry picks the release up through its webhook.
+Releases are cut by running the Release workflow (see "Cutting a release" below), which creates the `v*` tag. `.github/workflows/release.yml` then runs GoReleaser (`.goreleaser.yml`) in the same run, which builds the provider for all platforms, signs the checksums with GPG, and publishes a GitHub release with the registry manifest attached. The Terraform Registry picks the release up through its webhook.
 
 The provider is published as `camunda-community-hub/orchestration-cluster`
 (`source = "camunda-community-hub/orchestration-cluster"` in `required_providers`). The registry derives that name from the repository name (`terraform-provider-<name>`) and the GitHub organization.
@@ -89,7 +89,7 @@ The provider is published as `camunda-community-hub/orchestration-cluster`
 
 1. In `CHANGELOG.md`, add the entry for the next version with its release date, for example `## 0.3.0 (October 20, 2026)`, and merge it to `main`. The release archives ship `CHANGELOG.md`, and the workflow refuses to release a version without a dated entry.
 2. Go to Actions > Release > Run workflow, keep the branch `main`, and choose the release type: `patch`, `minor` or `major`. The workflow bumps the latest `v*` tag accordingly (for example `v0.2.0` becomes `v0.2.1`, `v0.3.0` or `v1.0.0`). While the project is `0.x`, breaking changes go into a `minor` release. Tick `dry_run` first if you want to see the computed version and have the preconditions checked without releasing anything.
-3. The workflow then runs the full CI on the commit, creates the annotated tag, and builds, signs and publishes the release. It stops at the first failing step. If a flaky test fails the CI, run the workflow again.
+3. The workflow then runs the full CI on the commit, creates the annotated tag, and builds, signs and publishes the release. It stops at the first failing step. If the CI fails, no tag exists yet, so just run the workflow again. If a step after the tag was pushed fails, use "Re-run failed jobs" on that same run: the tag step reuses the existing tag. Do not start a new run in that case, because the tag is now the latest version and a new run would compute the one after it.
 4. Check that the `Release` workflow succeeded, that the GitHub release has the signed checksums and the `*_manifest.json`, and that `terraform init` downloads the new version from the registry.
 
 The steps of the workflow (checking the branch, computing the version, checking the changelog, creating the tag) are a small Go program in `.github/scripts/release`, not inline shell. It has unit tests, including tests against scratch git repositories, which CI runs with `go test ./.github/scripts/...` (a plain `go test ./...` skips directories that start with a dot). To see what version a release type would produce, run it from the repository root; it prints the result and does not change anything:
@@ -98,7 +98,7 @@ The steps of the workflow (checking the branch, computing the version, checking 
 RELEASE_TYPE=minor go run ./.github/scripts/release next-version
 ```
 
-Pushing a `v*` tag by hand still works and goes straight to building and publishing, without the CI run and the checks above.
+Releases only happen through this workflow. Pushing a `v*` tag by hand does not release anything: nothing listens for tag pushes, so there is no path around the CI run and the checks above. A hand-pushed tag would still count as the latest version when the next one is computed, so delete it if it was a mistake.
 
 The tag created by the workflow is pushed with the default `GITHUB_TOKEN`, which does not start other workflow runs, so the tag does not trigger a second release. Keep it that way: using a personal access token for the push would. The registry webhook listens for the GitHub release that GoReleaser creates, not for tags, so it is not affected.
 
