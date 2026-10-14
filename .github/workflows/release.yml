@@ -3,9 +3,9 @@ name: Release
 
 # Releases are made only by running this workflow manually (Actions > Release > Run workflow)
 # from the default branch and choosing the kind of release. It computes the next version from
-# the latest v* tag, requires a dated changelog entry, runs the full CI on the commit, creates
-# the tag, and then builds, signs and publishes the release. Pushing a tag by hand does not
-# release anything.
+# the latest vMAJOR.MINOR.PATCH tag (pre-release tags are ignored), requires a dated changelog
+# entry, runs the full CI on the commit, creates the tag, and then builds, signs and publishes
+# the release. Pushing a tag by hand does not release anything.
 #
 # The tag is pushed with the default GITHUB_TOKEN, and pushes made with that token do not start
 # other workflow runs. That is intentional: the release job below runs in the same workflow run,
@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       release_type:
-        description: 'Version bump applied to the latest v* tag'
+        description: 'Version bump applied to the latest vMAJOR.MINOR.PATCH tag (pre-release tags are ignored)'
         type: choice
         required: true
         default: patch

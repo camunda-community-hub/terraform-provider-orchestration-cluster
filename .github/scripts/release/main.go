@@ -2,7 +2,8 @@
 // subcommands, so they can be tested and run locally instead of living as inline shell:
 //
 //	release require-main     fail unless GITHUB_REF is refs/heads/main
-//	release next-version     compute the next version from the v* tags and RELEASE_TYPE
+//	release next-version     compute the next version from the latest vMAJOR.MINOR.PATCH tag
+//	                         (pre-release tags are ignored) and RELEASE_TYPE
 //	release check-changelog  require a dated CHANGELOG.md heading for VERSION
 //	release create-tag       create and push the tag VERSION on GITHUB_SHA, idempotently
 //
