@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -87,14 +88,23 @@ func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, st
 	}
 }
 
-// contains pages through all members of the owner and reports whether memberId is among them.
-// It returns an error with message "not_found" if the owner itself is not found.
+// memberSearch is the paged search endpoint for the members of one type below an owner, such
+// as the clients of a tenant. membershipDef embeds the same two functions for assignments;
+// the members data sources use them for member types that have no assignment resource.
+type memberSearch struct {
+	search     func(ctx context.Context, c *camunda.ClientWithResponses, ownerId string, body camunda.SearchQueryRequest) (membershipResponse, error)
+	decodePage func(body []byte) (ids []string, endCursor string, exactTotal int64, err error)
+}
+
+// forEachPage pages through all members of the owner and calls visit with the member IDs of
+// each page until visit returns true or the members are exhausted. It returns an error with
+// message "not_found" if the owner itself is not found.
 //
-// Pagination stops as soon as the member is found, a page has no items, the end cursor is
+// Pagination stops as soon as visit returns true, a page has no items, the end cursor is
 // empty, the end cursor did not advance, or the exact totalItems has been consumed.
 // hasMoreTotalItems is not a next-page flag: it only says that totalItems is a capped lower
 // bound, so totalItems is trusted only when it is false.
-func (d membershipDef) contains(ctx context.Context, client *camunda.ClientWithResponses, ownerId, memberId string) (bool, error) {
+func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWithResponses, ownerId string, visit func(ids []string) (stop bool)) error {
 	var cursor string
 	var seen int64
 	for {
@@ -108,38 +118,58 @@ func (d membershipDef) contains(ctx context.Context, client *camunda.ClientWithR
 			limit := membershipPageSize
 			sqpr := camunda.SearchQueryPageRequest{}
 			if err := sqpr.FromCursorForwardPagination(camunda.CursorForwardPagination{Limit: &limit, After: cursor}); err != nil {
-				return false, fmt.Errorf("encoding cursor: %w", err)
+				return fmt.Errorf("encoding cursor: %w", err)
 			}
 			body.Page = &sqpr
 		}
 
-		searchResp, err := d.search(ctx, client, ownerId, body)
+		searchResp, err := s.search(ctx, client, ownerId, body)
 		if err != nil {
-			return false, err
+			return err
 		}
 		if searchResp.Status == http.StatusNotFound {
-			return false, fmt.Errorf("not_found")
+			return fmt.Errorf("not_found")
 		}
 		if searchResp.Status != http.StatusOK {
-			return false, fmt.Errorf("HTTP %d", searchResp.Status)
+			return fmt.Errorf("HTTP %d", searchResp.Status)
 		}
 
-		ids, endCursor, total, err := d.decodePage(searchResp.Body)
+		ids, endCursor, total, err := s.decodePage(searchResp.Body)
 		if err != nil {
-			return false, err
+			return err
 		}
-		for _, id := range ids {
-			if id == memberId {
-				return true, nil
-			}
+		if visit(ids) {
+			return nil
 		}
 
 		seen += int64(len(ids))
 		if len(ids) == 0 || endCursor == "" || endCursor == cursor || (total >= 0 && seen >= total) {
-			return false, nil
+			return nil
 		}
 		cursor = endCursor
 	}
+}
+
+// all returns the IDs of all members of the owner. It returns an error with message
+// "not_found" if the owner itself is not found.
+func (s memberSearch) all(ctx context.Context, client *camunda.ClientWithResponses, ownerId string) ([]string, error) {
+	ids := []string{}
+	err := s.forEachPage(ctx, client, ownerId, func(page []string) bool {
+		ids = append(ids, page...)
+		return false
+	})
+	return ids, err
+}
+
+// contains reports whether memberId is among the members of the owner, stopping at the page
+// that holds it. It returns an error with message "not_found" if the owner itself is not found.
+func (d membershipDef) contains(ctx context.Context, client *camunda.ClientWithResponses, ownerId, memberId string) (bool, error) {
+	found := false
+	err := memberSearch{search: d.search, decodePage: d.decodePage}.forEachPage(ctx, client, ownerId, func(ids []string) bool {
+		found = slices.Contains(ids, memberId)
+		return found
+	})
+	return found, err
 }
 
 var _ resource.Resource = &membershipResource{}

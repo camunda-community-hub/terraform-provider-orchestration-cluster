@@ -2,6 +2,8 @@
 
 ENHANCEMENTS:
 
+* **New Data Sources:** `orchestration_cluster_group_members`, `orchestration_cluster_role_members` and `orchestration_cluster_tenant_members` list the members of a group, role or tenant by member type, including members Terraform does not manage.
+* **New Data Source:** `orchestration_cluster_cluster_variable` looks up a cluster variable by name and optional tenant.
 * Every resource and data source page now links to the matching Camunda documentation page.
 * Descriptions now say "inside a Camunda cluster" (for example "A group inside a Camunda cluster") so that `orchestration_cluster_group` and the other entities are not read as a group of clusters. The README no longer labels entities as "Identity", as that component is now called Admin.
 

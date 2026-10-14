@@ -102,7 +102,11 @@ tenants, so they are managed through the `*_member_client` resources.
 | `orchestration_cluster_tenant` | A tenant by ID or name |
 | `orchestration_cluster_mapping_rule` | A mapping rule by ID |
 | `orchestration_cluster_authorization` | An authorization by key |
+| `orchestration_cluster_cluster_variable` | A cluster variable by name and optional tenant |
+| `orchestration_cluster_group_members`, `_role_members`, `_tenant_members` | The user, client, group, role and mapping rule IDs assigned to a group, role or tenant (including members Terraform does not manage) |
 | `orchestration_cluster_cluster_topology` | The cluster topology |
+
+There is no standalone client data source for the same reason as there is no client resource: clients exist only as members of groups, roles and tenants, so the `*_members` data sources list them as `client_ids`.
 
 ## Eventual consistency
 
