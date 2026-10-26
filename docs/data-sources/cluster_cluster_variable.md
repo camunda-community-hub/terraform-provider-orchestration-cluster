@@ -44,5 +44,7 @@ output "default_retries" {
 ### Read-Only
 
 - `id` (String) The identity of the variable: `GLOBAL/<name>` for a global variable or `TENANT/<tenant_id>/<name>` for a tenant-scoped one.
+- `kind` (String) The kind of the variable: `JSON` or `SECRET_REFERENCE`. The value of a `SECRET_REFERENCE` variable holds `camunda.secrets.<name>` references, not the secrets themselves.
+- `metadata` (Map of String) Key-value metadata attached to the variable, or null if it has none. Numeric metadata values are reported as their string representation.
 - `scope` (String) The scope of the variable: `GLOBAL` or `TENANT`.
 - `value` (String) The value of the variable as a JSON document, the same way the `orchestration_cluster_cluster_variable` resource reports it. Use `jsondecode()` to read it.

@@ -94,23 +94,24 @@ func TestJsonEquivalent(t *testing.T) {
 
 func TestClusterVariableRequestBody(t *testing.T) {
 	name := "n"
-	create, err := clusterVariableRequestBody(&name, `"text"`)
+	kind := "SECRET_REFERENCE"
+	create, err := clusterVariableRequestBody(&name, &kind, `"text"`, map[string]string{"team": "a"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	buf := make([]byte, create.Len())
 	_, _ = create.Read(buf)
-	if string(buf) != `{"name":"n","value":"text"}` {
+	if string(buf) != `{"name":"n","kind":"SECRET_REFERENCE","value":"text","metadata":{"team":"a"}}` {
 		t.Fatalf("create body: %s", buf)
 	}
 
-	update, err := clusterVariableRequestBody(nil, `{"a":1}`)
+	update, err := clusterVariableRequestBody(nil, nil, `{"a":1}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	buf = make([]byte, update.Len())
 	_, _ = update.Read(buf)
-	if string(buf) != `{"value":{"a":1}}` {
+	if string(buf) != `{"value":{"a":1},"metadata":{}}` {
 		t.Fatalf("update body: %s", buf)
 	}
 }
@@ -134,5 +135,26 @@ func TestJsonValueValidator(t *testing.T) {
 		if resp.Diagnostics.HasError() != tt.wantErr {
 			t.Errorf("value %s: error = %v, want %v", tt.value, resp.Diagnostics.HasError(), tt.wantErr)
 		}
+	}
+}
+
+func TestParseClusterVariableMetadata(t *testing.T) {
+	got, err := parseClusterVariableMetadata([]byte(`{"metadata":{"team":"a","retries":3,"ratio":0.5}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"team": "a", "retries": "3", "ratio": "0.5"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("metadata[%q] = %q, want %q", k, got[k], v)
+		}
+	}
+
+	empty, err := parseClusterVariableMetadata([]byte(`{"name":"n"}`))
+	if err != nil || len(empty) != 0 {
+		t.Errorf("a response without metadata must yield an empty map, got %v, %v", empty, err)
 	}
 }

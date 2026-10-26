@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.10"
 )
 
 // membershipSearchServer serves the given pages of a tenant client search in order, recording

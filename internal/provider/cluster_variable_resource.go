@@ -6,21 +6,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math/big"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.10"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -44,11 +48,16 @@ type ClusterVariableResourceModel struct {
 	TenantId types.String `tfsdk:"tenant_id"`
 	Value    types.String `tfsdk:"value"`
 	Scope    types.String `tfsdk:"scope"`
+	Kind     types.String `tfsdk:"kind"`
+	Metadata types.Map    `tfsdk:"metadata"`
 }
 
 const (
 	clusterVariableScopeGlobal = string(camunda.ClusterVariableScopeEnumGLOBAL)
 	clusterVariableScopeTenant = string(camunda.ClusterVariableScopeEnumTENANT)
+
+	clusterVariableKindJSON            = string(camunda.JSON)
+	clusterVariableKindSecretReference = string(camunda.SECRETREFERENCE)
 )
 
 func (r *ClusterVariableResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -97,6 +106,27 @@ func (r *ClusterVariableResource) Schema(ctx context.Context, req resource.Schem
 			"scope": schema.StringAttribute{
 				MarkdownDescription: "The scope of the variable: `GLOBAL` or `TENANT`.",
 				Computed:            true,
+			},
+			"kind": schema.StringAttribute{
+				MarkdownDescription: "The kind of the variable: `JSON` (the default) or `SECRET_REFERENCE`. A `SECRET_REFERENCE` " +
+					"variable may contain `camunda.secrets.<name>` references in its value, which are resolved when a job is activated, " +
+					"so the secret itself is never stored in the variable or in the Terraform state. The API cannot change the kind of an " +
+					"existing variable, so changing it replaces the variable.",
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString(clusterVariableKindJSON),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringOneOfValidator{allowed: []string{clusterVariableKindJSON, clusterVariableKindSecretReference}},
+				},
+			},
+			"metadata": schema.MapAttribute{
+				MarkdownDescription: "Key-value metadata attached to the variable, at most 100 entries. The API also accepts " +
+					"numbers as metadata values; they are reported as their string representation. Omit it for no metadata.",
+				ElementType: types.StringType,
+				Optional:    true,
 			},
 		},
 	}
@@ -187,7 +217,13 @@ func (r *ClusterVariableResource) Create(ctx context.Context, req resource.Creat
 	tenantId := tenantIdPointer(data.TenantId)
 	name := data.Name.ValueString()
 
-	apiResp, err := createClusterVariable(ctx, r.client, tenantId, name, data.Value.ValueString())
+	metadata, diags := clusterVariableMetadataFromModel(ctx, data.Metadata)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	apiResp, err := createClusterVariable(ctx, r.client, tenantId, name, data.Kind.ValueString(), data.Value.ValueString(), metadata)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create cluster variable, got error: %s", err))
 		return
@@ -207,7 +243,9 @@ func (r *ClusterVariableResource) Create(ctx context.Context, req resource.Creat
 	data.TenantId = optionalStringValue(apiResp.Result.TenantId)
 	data.Scope = types.StringValue(string(apiResp.Result.Scope))
 	data.Id = types.StringValue(clusterVariableId(apiResp.Result.TenantId, apiResp.Result.Name))
+	data.Kind = types.StringValue(string(apiResp.Result.Kind))
 	// data.Value keeps the configured value: the API echoes it back in its own serialization.
+	// data.Metadata keeps the configured metadata for the same reason.
 
 	// Persist state from the create response before polling for read consistency, so a
 	// polling timeout or transport error doesn't orphan the variable the API already created.
@@ -269,6 +307,18 @@ func (r *ClusterVariableResource) Read(ctx context.Context, req resource.ReadReq
 	data.TenantId = optionalStringValue(apiResp.Result.TenantId)
 	data.Scope = types.StringValue(string(apiResp.Result.Scope))
 	data.Id = types.StringValue(clusterVariableId(apiResp.Result.TenantId, apiResp.Result.Name))
+	data.Kind = types.StringValue(string(apiResp.Result.Kind))
+	metadata, err := parseClusterVariableMetadata(apiResp.Body)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Response", fmt.Sprintf("Unable to read the metadata of cluster variable '%s': %s", name, err))
+		return
+	}
+	var metadataDiags diag.Diagnostics
+	data.Metadata, metadataDiags = clusterVariableMetadataToModel(ctx, metadata)
+	resp.Diagnostics.Append(metadataDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	if data.Value.IsNull() || !jsonEquivalent(data.Value.ValueString(), value) {
 		data.Value = types.StringValue(value)
 	}
@@ -290,7 +340,13 @@ func (r *ClusterVariableResource) Update(ctx context.Context, req resource.Updat
 	tenantId := tenantIdPointer(data.TenantId)
 	name := data.Name.ValueString()
 
-	apiResp, err := updateClusterVariable(ctx, r.client, tenantId, name, data.Value.ValueString())
+	metadata, diags := clusterVariableMetadataFromModel(ctx, data.Metadata)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	apiResp, err := updateClusterVariable(ctx, r.client, tenantId, name, data.Value.ValueString(), metadata)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update cluster variable, got error: %s", err))
 		return
@@ -301,7 +357,7 @@ func (r *ClusterVariableResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	if _, err := readClusterVariableUntilConsistent(ctx, r.client, tenantId, name, data.Value.ValueString()); err != nil {
+	if _, err := readClusterVariableUntilConsistent(ctx, r.client, tenantId, name, data.Value.ValueString(), metadata); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm cluster variable update, got error: %s", err))
 		return
 	}
@@ -497,11 +553,17 @@ type clusterVariableResponse struct {
 // clusterVariableRequestBody builds a create or update request body. The value is sent as raw
 // JSON because the generated request types only model JSON objects, while a variable may hold
 // any JSON value.
-func clusterVariableRequestBody(name *string, value string) (*bytes.Reader, error) {
+func clusterVariableRequestBody(name, kind *string, value string, metadata map[string]string) (*bytes.Reader, error) {
 	body := struct {
-		Name  *string         `json:"name,omitempty"`
-		Value json.RawMessage `json:"value"`
-	}{Name: name, Value: json.RawMessage(value)}
+		Name     *string           `json:"name,omitempty"`
+		Kind     *string           `json:"kind,omitempty"`
+		Value    json.RawMessage   `json:"value"`
+		Metadata map[string]string `json:"metadata"`
+	}{Name: name, Kind: kind, Value: json.RawMessage(value), Metadata: metadata}
+	if body.Metadata == nil {
+		// Send an empty object rather than null so that an update clears existing metadata.
+		body.Metadata = map[string]string{}
+	}
 
 	encoded, err := json.Marshal(body)
 	if err != nil {
@@ -510,8 +572,8 @@ func clusterVariableRequestBody(name *string, value string) (*bytes.Reader, erro
 	return bytes.NewReader(encoded), nil
 }
 
-func createClusterVariable(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name, value string) (clusterVariableResponse, error) {
-	body, err := clusterVariableRequestBody(&name, value)
+func createClusterVariable(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name, kind, value string, metadata map[string]string) (clusterVariableResponse, error) {
+	body, err := clusterVariableRequestBody(&name, &kind, value, metadata)
 	if err != nil {
 		return clusterVariableResponse{}, err
 	}
@@ -547,8 +609,8 @@ func getClusterVariable(ctx context.Context, client *camunda.ClientWithResponses
 	return clusterVariableResponse{Status: resp.StatusCode(), Body: resp.Body, Result: resp.JSON200}, nil
 }
 
-func updateClusterVariable(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name, value string) (clusterVariableResponse, error) {
-	body, err := clusterVariableRequestBody(nil, value)
+func updateClusterVariable(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name, value string, metadata map[string]string) (clusterVariableResponse, error) {
+	body, err := clusterVariableRequestBody(nil, nil, value, metadata)
 	if err != nil {
 		return clusterVariableResponse{}, err
 	}
@@ -604,11 +666,11 @@ func readClusterVariableWithRetry(ctx context.Context, client *camunda.ClientWit
 		})
 }
 
-// readClusterVariableUntilConsistent polls GET until it reflects the given value, handling the
+// readClusterVariableUntilConsistent polls GET until it reflects the given value and metadata, handling the
 // same eventual consistency on updates as readClusterVariableWithRetry does on creates: the
 // read-side projection can briefly return the pre-update value right after a successful PUT,
 // which would otherwise make Terraform's post-apply refresh plan non-empty.
-func readClusterVariableUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name, expectedValue string) (clusterVariableResponse, error) {
+func readClusterVariableUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name, expectedValue string, expectedMetadata map[string]string) (clusterVariableResponse, error) {
 	return readUntilConsistent(ctx, client, fmt.Sprintf("cluster variable %q", name),
 		func() (clusterVariableResponse, error) {
 			return getClusterVariable(ctx, client, tenantId, name)
@@ -627,6 +689,78 @@ func readClusterVariableUntilConsistent(ctx context.Context, client *camunda.Cli
 				return false, err
 			}
 
-			return jsonEquivalent(value, expectedValue), nil
+			metadata, err := parseClusterVariableMetadata(readResp.Body)
+			if err != nil {
+				return false, err
+			}
+
+			return jsonEquivalent(value, expectedValue) && maps.Equal(metadata, expectedMetadata), nil
 		})
+}
+
+// parseClusterVariableMetadata extracts the metadata from a get/create/update response body.
+// The API accepts strings and numbers as metadata values; numbers are reported in their JSON
+// representation, so every value is a string. A response without metadata yields an empty map.
+func parseClusterVariableMetadata(body []byte) (map[string]string, error) {
+	var parsed struct {
+		Metadata map[string]json.RawMessage `json:"metadata"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+
+	metadata := make(map[string]string, len(parsed.Metadata))
+	for key, raw := range parsed.Metadata {
+		var str string
+		if err := json.Unmarshal(raw, &str); err == nil {
+			metadata[key] = str
+			continue
+		}
+		metadata[key] = string(raw)
+	}
+	return metadata, nil
+}
+
+// clusterVariableMetadataFromModel converts the metadata attribute to a map; null or unknown
+// metadata is an empty map.
+func clusterVariableMetadataFromModel(ctx context.Context, m types.Map) (map[string]string, diag.Diagnostics) {
+	metadata := map[string]string{}
+	if m.IsNull() || m.IsUnknown() {
+		return metadata, nil
+	}
+	diags := m.ElementsAs(ctx, &metadata, false)
+	return metadata, diags
+}
+
+// clusterVariableMetadataToModel converts API metadata to the metadata attribute. An empty map
+// becomes null, because the API reports a variable without metadata as an empty map and the
+// attribute is omitted in that case.
+func clusterVariableMetadataToModel(ctx context.Context, metadata map[string]string) (types.Map, diag.Diagnostics) {
+	if len(metadata) == 0 {
+		return types.MapNull(types.StringType), nil
+	}
+	return types.MapValueFrom(ctx, types.StringType, metadata)
+}
+
+// stringOneOfValidator rejects any configured string that is not one of allowed.
+type stringOneOfValidator struct {
+	allowed []string
+}
+
+func (v stringOneOfValidator) Description(ctx context.Context) string {
+	return fmt.Sprintf("must be one of: %s", strings.Join(v.allowed, ", "))
+}
+
+func (v stringOneOfValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v stringOneOfValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if !slices.Contains(v.allowed, req.ConfigValue.ValueString()) {
+		resp.Diagnostics.AddAttributeError(req.Path, "Invalid Value",
+			fmt.Sprintf("%s %s, got: %q.", req.Path, v.Description(ctx), req.ConfigValue.ValueString()))
+	}
 }

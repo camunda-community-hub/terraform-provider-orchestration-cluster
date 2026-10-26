@@ -11,7 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.10"
 )
 
 // sensitiveHeaders lists request/response headers whose values must never be
@@ -24,7 +24,7 @@ var sensitiveHeaders = map[string]bool{
 
 // sensitiveBodyFields lists JSON body field names (matched case-insensitively)
 // whose values must be redacted before logging, since they carry credentials.
-// password (UserRequest.Password in pkg/camunda/8.9/client.gen.go) is the
+// password (UserRequest.Password in pkg/camunda/8.10/client.gen.go) is the
 // only credential-bearing field in the orchestration cluster API's OpenAPI
 // spec (spec/8.9/bundled-api.yaml).
 var sensitiveBodyFields = map[string]bool{
