@@ -2,11 +2,16 @@ package provider
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.10"
 )
 
 func TestClusterVariableId(t *testing.T) {
@@ -189,5 +194,46 @@ func TestReconcileClusterVariableMetadata(t *testing.T) {
 				t.Errorf("got null=%v len=%d, want null=%v len=%d", got.IsNull(), len(got.Elements()), tt.wantNull, tt.wantLen)
 			}
 		})
+	}
+}
+
+// TestReadClusterVariableUntilConsistent_waitsForRecreatedVariable covers a variable that is
+// replaced under the same name (for example when its kind changes): the eventually consistent GET
+// first returns the old variable, which must not be accepted as the result of the create.
+func TestReadClusterVariableUntilConsistent_waitsForRecreatedVariable(t *testing.T) {
+	withFastConsistencyPolling(t)
+
+	responses := []string{
+		`{"name":"v","scope":"GLOBAL","tenantId":null,"kind":"JSON","metadata":{},"value":"\"old\""}`,
+		`{"name":"v","scope":"GLOBAL","tenantId":null,"kind":"SECRET_REFERENCE","metadata":{},"value":"\"new\""}`,
+		`{"name":"v","scope":"GLOBAL","tenantId":null,"kind":"SECRET_REFERENCE","metadata":{"team":"a"},"value":"\"new\""}`,
+	}
+	var mu sync.Mutex
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		i := min(calls, len(responses)-1)
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(responses[i]))
+	}))
+	t.Cleanup(server.Close)
+	client, err := camunda.NewClientWithResponses(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := readClusterVariableUntilConsistent(context.Background(), client, nil, "v", "SECRET_REFERENCE", `"new"`, map[string]string{"team": "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got.Result.Kind) != "SECRET_REFERENCE" {
+		t.Errorf("kind = %q, want SECRET_REFERENCE", got.Result.Kind)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 3 {
+		t.Errorf("got %d reads, want 3: the old kind, the old metadata and then the recreated variable", calls)
 	}
 }

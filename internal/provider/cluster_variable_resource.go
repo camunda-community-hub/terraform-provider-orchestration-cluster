@@ -254,7 +254,7 @@ func (r *ClusterVariableResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	if _, err := readClusterVariableWithRetry(ctx, r.client, tenantId, name); err != nil {
+	if _, err := readClusterVariableUntilConsistent(ctx, r.client, tenantId, name, data.Kind.ValueString(), data.Value.ValueString(), metadata); err != nil {
 		resp.Diagnostics.AddWarning("Consistency Check Failed", fmt.Sprintf("Cluster variable %q was created but could not be confirmed readable yet: %s. State was saved from the create response; a later refresh will pick up any drift.", name, err))
 		return
 	}
@@ -357,7 +357,7 @@ func (r *ClusterVariableResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	if _, err := readClusterVariableUntilConsistent(ctx, r.client, tenantId, name, data.Value.ValueString(), metadata); err != nil {
+	if _, err := readClusterVariableUntilConsistent(ctx, r.client, tenantId, name, data.Kind.ValueString(), data.Value.ValueString(), metadata); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to confirm cluster variable update, got error: %s", err))
 		return
 	}
@@ -646,31 +646,12 @@ func deleteClusterVariable(ctx context.Context, client *camunda.ClientWithRespon
 	return resp.StatusCode(), nil
 }
 
-// readClusterVariableWithRetry handles the eventual consistency of fetching a variable by
-// retrying a few times: if a variable was just created, it may not be immediately available
-// through the API.
-func readClusterVariableWithRetry(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name string) (clusterVariableResponse, error) {
-	return readWithRetry(ctx, client, fmt.Sprintf("cluster variable %q", name),
-		func() (clusterVariableResponse, error) {
-			return getClusterVariable(ctx, client, tenantId, name)
-		},
-		func(readResp clusterVariableResponse) (bool, error) {
-			switch readResp.Status {
-			case http.StatusOK:
-				return true, nil
-			case http.StatusNotFound:
-				return false, nil
-			default:
-				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.Status, readResp.Body)
-			}
-		})
-}
-
-// readClusterVariableUntilConsistent polls GET until it reflects the given value and metadata, handling the
-// same eventual consistency on updates as readClusterVariableWithRetry does on creates: the
-// read-side projection can briefly return the pre-update value right after a successful PUT,
-// which would otherwise make Terraform's post-apply refresh plan non-empty.
-func readClusterVariableUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name, expectedValue string, expectedMetadata map[string]string) (clusterVariableResponse, error) {
+// readClusterVariableUntilConsistent polls GET until it reflects the given kind, value and
+// metadata. The read-side projection is eventually consistent: right after a successful PUT it can
+// briefly return the pre-update variable, and right after a create that replaces a variable (for
+// example when the kind changes) it can briefly return the old one, which would otherwise make
+// Terraform's post-apply refresh plan non-empty.
+func readClusterVariableUntilConsistent(ctx context.Context, client *camunda.ClientWithResponses, tenantId *string, name, expectedKind, expectedValue string, expectedMetadata map[string]string) (clusterVariableResponse, error) {
 	return readUntilConsistent(ctx, client, fmt.Sprintf("cluster variable %q", name),
 		func() (clusterVariableResponse, error) {
 			return getClusterVariable(ctx, client, tenantId, name)
@@ -682,6 +663,10 @@ func readClusterVariableUntilConsistent(ctx context.Context, client *camunda.Cli
 
 			if readResp.Status != http.StatusOK {
 				return false, fmt.Errorf("got HTTP error: %d: %s", readResp.Status, readResp.Body)
+			}
+
+			if readResp.Result == nil || string(readResp.Result.Kind) != expectedKind {
+				return false, nil
 			}
 
 			value, err := parseClusterVariableValue(readResp.Body)
