@@ -10,3 +10,14 @@ resource "orchestration_cluster_cluster_variable" "tenant" {
   tenant_id = "my-tenant"
   value     = jsonencode("hello")
 }
+
+# A variable that references a secret, with metadata. The value holds the reference, not the secret.
+resource "orchestration_cluster_cluster_variable" "secret_reference" {
+  name  = "api-token"
+  kind  = "SECRET_REFERENCE"
+  value = jsonencode("camunda.secrets.API_TOKEN")
+
+  metadata = {
+    owner = "platform-team"
+  }
+}

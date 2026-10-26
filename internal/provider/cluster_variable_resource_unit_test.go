@@ -2,10 +2,16 @@ package provider
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.10"
 )
 
 func TestClusterVariableId(t *testing.T) {
@@ -94,23 +100,24 @@ func TestJsonEquivalent(t *testing.T) {
 
 func TestClusterVariableRequestBody(t *testing.T) {
 	name := "n"
-	create, err := clusterVariableRequestBody(&name, `"text"`)
+	kind := "SECRET_REFERENCE"
+	create, err := clusterVariableRequestBody(&name, &kind, `"text"`, map[string]string{"team": "a"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	buf := make([]byte, create.Len())
 	_, _ = create.Read(buf)
-	if string(buf) != `{"name":"n","value":"text"}` {
+	if string(buf) != `{"name":"n","kind":"SECRET_REFERENCE","value":"text","metadata":{"team":"a"}}` {
 		t.Fatalf("create body: %s", buf)
 	}
 
-	update, err := clusterVariableRequestBody(nil, `{"a":1}`)
+	update, err := clusterVariableRequestBody(nil, nil, `{"a":1}`, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	buf = make([]byte, update.Len())
 	_, _ = update.Read(buf)
-	if string(buf) != `{"value":{"a":1}}` {
+	if string(buf) != `{"value":{"a":1},"metadata":{}}` {
 		t.Fatalf("update body: %s", buf)
 	}
 }
@@ -134,5 +141,99 @@ func TestJsonValueValidator(t *testing.T) {
 		if resp.Diagnostics.HasError() != tt.wantErr {
 			t.Errorf("value %s: error = %v, want %v", tt.value, resp.Diagnostics.HasError(), tt.wantErr)
 		}
+	}
+}
+
+func TestParseClusterVariableMetadata(t *testing.T) {
+	got, err := parseClusterVariableMetadata([]byte(`{"metadata":{"team":"a","retries":3,"ratio":0.5}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"team": "a", "retries": "3", "ratio": "0.5"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("metadata[%q] = %q, want %q", k, got[k], v)
+		}
+	}
+
+	empty, err := parseClusterVariableMetadata([]byte(`{"name":"n"}`))
+	if err != nil || len(empty) != 0 {
+		t.Errorf("a response without metadata must yield an empty map, got %v, %v", empty, err)
+	}
+}
+
+func TestReconcileClusterVariableMetadata(t *testing.T) {
+	ctx := context.Background()
+	empty := types.MapValueMust(types.StringType, map[string]attr.Value{})
+	filled := types.MapValueMust(types.StringType, map[string]attr.Value{"team": types.StringValue("a")})
+
+	tests := []struct {
+		name     string
+		prior    types.Map
+		api      map[string]string
+		wantNull bool
+		wantLen  int
+	}{
+		{"configured empty map is kept when the API has none", empty, map[string]string{}, false, 0},
+		{"omitted metadata stays null when the API has none", types.MapNull(types.StringType), map[string]string{}, true, 0},
+		{"unknown prior becomes null when the API has none", types.MapUnknown(types.StringType), map[string]string{}, true, 0},
+		{"API metadata wins over a configured empty map", empty, map[string]string{"team": "a"}, false, 1},
+		{"API metadata wins over a configured value", filled, map[string]string{"env": "x", "team": "b"}, false, 2},
+		{"cleared out of band becomes null", filled, map[string]string{}, true, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, diags := reconcileClusterVariableMetadata(ctx, tt.prior, tt.api)
+			if diags.HasError() {
+				t.Fatal(diags)
+			}
+			if got.IsNull() != tt.wantNull || len(got.Elements()) != tt.wantLen {
+				t.Errorf("got null=%v len=%d, want null=%v len=%d", got.IsNull(), len(got.Elements()), tt.wantNull, tt.wantLen)
+			}
+		})
+	}
+}
+
+// TestReadClusterVariableUntilConsistent_waitsForRecreatedVariable covers a variable that is
+// replaced under the same name (for example when its kind changes): the eventually consistent GET
+// first returns the old variable, which must not be accepted as the result of the create.
+func TestReadClusterVariableUntilConsistent_waitsForRecreatedVariable(t *testing.T) {
+	withFastConsistencyPolling(t)
+
+	responses := []string{
+		`{"name":"v","scope":"GLOBAL","tenantId":null,"kind":"JSON","metadata":{},"value":"\"old\""}`,
+		`{"name":"v","scope":"GLOBAL","tenantId":null,"kind":"SECRET_REFERENCE","metadata":{},"value":"\"new\""}`,
+		`{"name":"v","scope":"GLOBAL","tenantId":null,"kind":"SECRET_REFERENCE","metadata":{"team":"a"},"value":"\"new\""}`,
+	}
+	var mu sync.Mutex
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		i := min(calls, len(responses)-1)
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(responses[i]))
+	}))
+	t.Cleanup(server.Close)
+	client, err := camunda.NewClientWithResponses(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := readClusterVariableUntilConsistent(context.Background(), client, nil, "v", "SECRET_REFERENCE", `"new"`, map[string]string{"team": "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got.Result.Kind) != "SECRET_REFERENCE" {
+		t.Errorf("kind = %q, want SECRET_REFERENCE", got.Result.Kind)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 3 {
+		t.Errorf("got %d reads, want 3: the old kind, the old metadata and then the recreated variable", calls)
 	}
 }

@@ -1,7 +1,13 @@
 ## Unreleased
 
+BREAKING CHANGES:
+
+* The provider now requires Camunda 8.10 or later and is built against the 8.10 Orchestration Cluster API. Camunda 8.9 and earlier are no longer supported.
+
 ENHANCEMENTS:
 
+* `orchestration_cluster_cluster_variable` (resource and data source) supports the 8.10 attributes `kind` (`JSON` or `SECRET_REFERENCE`; changing it replaces the variable) and `metadata`.
+* `orchestration_cluster_cluster_topology` now also exposes `last_completed_change_id` and the `brokers` with their `partitions` (including the broker ID and partition state added in 8.10).
 * **New Data Sources:** `orchestration_cluster_group_members`, `orchestration_cluster_role_members` and `orchestration_cluster_tenant_members` list the members of a group, role or tenant by member type, including members Terraform does not manage.
 * **New Data Source:** `orchestration_cluster_cluster_variable` looks up a cluster variable by name and optional tenant.
 * Every resource and data source page now links to the matching Camunda documentation page.

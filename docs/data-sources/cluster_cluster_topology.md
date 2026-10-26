@@ -25,4 +25,28 @@ Exposes the status and topology of a Camunda cluster. See the Camunda documentat
 
 ### Read-Only
 
+- `brokers` (Attributes List) The brokers that are part of the cluster. (see [below for nested schema](#nestedatt--brokers))
 - `id` (String) The cluster Id
+- `last_completed_change_id` (String) The ID of the last completed change of the cluster configuration.
+
+<a id="nestedatt--brokers"></a>
+### Nested Schema for `brokers`
+
+Read-Only:
+
+- `broker_id` (String) The unique (within a cluster) broker identifier. For a cluster that is not zone-aware it is the node ID as a string; for a zone-aware cluster it has the form `<zone name>_<node ID>`.
+- `host` (String) The hostname for reaching the broker.
+- `node_id` (Number) The node ID of the broker. Deprecated by the API in favor of `broker_id`, because it is only unique within its zone in a zone-aware cluster.
+- `partitions` (Attributes List) The partitions managed or replicated on the broker. (see [below for nested schema](#nestedatt--brokers--partitions))
+- `port` (Number) The port for reaching the broker.
+- `version` (String) The broker version.
+
+<a id="nestedatt--brokers--partitions"></a>
+### Nested Schema for `brokers.partitions`
+
+Read-Only:
+
+- `health` (String) The health of the partition: `healthy`, `unhealthy` or `dead`.
+- `partition_id` (Number) The unique ID of the partition.
+- `role` (String) The Raft role of the broker for the partition: `leader`, `follower` or `inactive`.
+- `state` (String) The operational state of the partition within the cluster configuration, for example `active`.

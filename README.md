@@ -164,7 +164,7 @@ not supported yet and is tracked together with the other provider settings in
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- A running Camunda orchestration cluster with API access
+- A running Camunda orchestration cluster 8.10 or later with API access. Earlier versions (8.9 and below) are not supported.
 
 ## License
 

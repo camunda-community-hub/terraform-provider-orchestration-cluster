@@ -2,8 +2,8 @@
 
 GOPATH_BIN      := $(shell GOTOOLCHAIN=go1.25.8 go env GOPATH)/bin
 CAMUNDA_REPO    ?= ~/camunda/repos/cc/camunda
-CAMUNDA_VERSION ?= 8.9
-VERSIONS        := 8.9 main
+CAMUNDA_VERSION ?= 8.10
+VERSIONS        := 8.10 main
 
 # Map a version label to a git ref
 ref = $(if $(filter main,$(1)),origin/main,origin/stable/$(1))
@@ -77,8 +77,8 @@ tidy:
 # Changelog
 # ---------------------------------------------------------------------------
 
-OLD_VERSION ?= 8.8
-NEW_VERSION ?= 8.9
+OLD_VERSION ?= 8.9
+NEW_VERSION ?= 8.10
 
 changelog:
 	@GOTOOLCHAIN=go1.25.8 go run ./cmd/changelog \
@@ -103,7 +103,7 @@ help:
 	@echo "  make generate-all                            # Generate clients for all versions"
 	@echo "  make build-all                               # Tidy + build everything"
 	@echo "  make compare                                 # Compare generated clients"
-	@echo "  make changelog         OLD_VERSION=8.8 NEW_VERSION=8.9"
+	@echo "  make changelog         OLD_VERSION=8.9 NEW_VERSION=8.10"
 	@echo "  make changelog-all                             # Changelog for all version pairs"
 	@echo "  make clean                                   # Remove generated files"
 	@echo ""

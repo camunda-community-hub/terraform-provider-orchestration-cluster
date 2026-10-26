@@ -7,11 +7,12 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.10"
 )
 
 var _ datasource.DataSource = &ClusterVariableDataSource{}
@@ -30,6 +31,8 @@ type ClusterVariableDataSourceModel struct {
 	TenantId types.String `tfsdk:"tenant_id"`
 	Value    types.String `tfsdk:"value"`
 	Scope    types.String `tfsdk:"scope"`
+	Kind     types.String `tfsdk:"kind"`
+	Metadata types.Map    `tfsdk:"metadata"`
 }
 
 func (d *ClusterVariableDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -61,6 +64,15 @@ func (d *ClusterVariableDataSource) Schema(ctx context.Context, req datasource.S
 			},
 			"scope": schema.StringAttribute{
 				MarkdownDescription: "The scope of the variable: `GLOBAL` or `TENANT`.",
+				Computed:            true,
+			},
+			"kind": schema.StringAttribute{
+				MarkdownDescription: "The kind of the variable: `JSON` or `SECRET_REFERENCE`. The value of a `SECRET_REFERENCE` variable holds `camunda.secrets.<name>` references, not the secrets themselves.",
+				Computed:            true,
+			},
+			"metadata": schema.MapAttribute{
+				MarkdownDescription: "Key-value metadata attached to the variable, or null if it has none. Numeric metadata values are reported as their string representation.",
+				ElementType:         types.StringType,
 				Computed:            true,
 			},
 		},
@@ -139,6 +151,19 @@ func (d *ClusterVariableDataSource) Read(ctx context.Context, req datasource.Rea
 	data.TenantId = optionalStringValue(apiResp.Result.TenantId)
 	data.Scope = types.StringValue(string(apiResp.Result.Scope))
 	data.Value = types.StringValue(value)
+	data.Kind = types.StringValue(string(apiResp.Result.Kind))
+
+	metadata, err := parseClusterVariableMetadata(apiResp.Body)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Response", fmt.Sprintf("Unable to read the metadata of cluster variable '%s': %s", name, err))
+		return
+	}
+	var metadataDiags diag.Diagnostics
+	data.Metadata, metadataDiags = clusterVariableMetadataToModel(ctx, metadata)
+	resp.Diagnostics.Append(metadataDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	tflog.Trace(ctx, "read cluster variable data source")
 

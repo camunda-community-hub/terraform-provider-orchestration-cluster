@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.9"
+	camunda "github.com/camunda-community-hub/terraform-provider-orchestration-cluster/pkg/camunda/8.10"
 )
 
 // membershipPageSize is the page size requested once a search has to continue past its first page.
@@ -109,15 +109,13 @@ func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWit
 	var seen int64
 	for {
 		body := camunda.SearchQueryRequest{}
-		// CursorForwardPagination.After has no `omitempty` json tag, so leaving it at its
-		// zero value would still serialize an explicit `"after":""`, which the server
-		// rejects as a malformed cursor (HTTP 500) on the very first page. Only set Page
-		// at all once there is an actual cursor to send; the server applies its own
+		// Only set Page once there is an actual cursor to send; the server applies its own
 		// default paging behavior when the field is omitted entirely.
 		if cursor != "" {
 			limit := membershipPageSize
+			after := cursor
 			sqpr := camunda.SearchQueryPageRequest{}
-			if err := sqpr.FromCursorForwardPagination(camunda.CursorForwardPagination{Limit: &limit, After: cursor}); err != nil {
+			if err := sqpr.FromCursorForwardPagination(camunda.CursorForwardPagination{Limit: &limit, After: &after}); err != nil {
 				return fmt.Errorf("encoding cursor: %w", err)
 			}
 			body.Page = &sqpr
