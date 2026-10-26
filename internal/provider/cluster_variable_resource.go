@@ -314,7 +314,7 @@ func (r *ClusterVariableResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 	var metadataDiags diag.Diagnostics
-	data.Metadata, metadataDiags = clusterVariableMetadataToModel(ctx, metadata)
+	data.Metadata, metadataDiags = reconcileClusterVariableMetadata(ctx, data.Metadata, metadata)
 	resp.Diagnostics.Append(metadataDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -740,6 +740,17 @@ func clusterVariableMetadataToModel(ctx context.Context, metadata map[string]str
 		return types.MapNull(types.StringType), nil
 	}
 	return types.MapValueFrom(ctx, types.StringType, metadata)
+}
+
+// reconcileClusterVariableMetadata converts API metadata to the metadata attribute, keeping the
+// prior value when it is an explicitly configured empty map and the API reports no metadata:
+// the attribute is optional rather than computed, so Terraform treats an empty map and null as
+// different values and would plan an update on every refresh otherwise.
+func reconcileClusterVariableMetadata(ctx context.Context, prior types.Map, metadata map[string]string) (types.Map, diag.Diagnostics) {
+	if len(metadata) == 0 && !prior.IsNull() && !prior.IsUnknown() && len(prior.Elements()) == 0 {
+		return prior, nil
+	}
+	return clusterVariableMetadataToModel(ctx, metadata)
 }
 
 // stringOneOfValidator rejects any configured string that is not one of allowed.

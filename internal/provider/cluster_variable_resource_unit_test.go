@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -156,5 +157,37 @@ func TestParseClusterVariableMetadata(t *testing.T) {
 	empty, err := parseClusterVariableMetadata([]byte(`{"name":"n"}`))
 	if err != nil || len(empty) != 0 {
 		t.Errorf("a response without metadata must yield an empty map, got %v, %v", empty, err)
+	}
+}
+
+func TestReconcileClusterVariableMetadata(t *testing.T) {
+	ctx := context.Background()
+	empty := types.MapValueMust(types.StringType, map[string]attr.Value{})
+	filled := types.MapValueMust(types.StringType, map[string]attr.Value{"team": types.StringValue("a")})
+
+	tests := []struct {
+		name     string
+		prior    types.Map
+		api      map[string]string
+		wantNull bool
+		wantLen  int
+	}{
+		{"configured empty map is kept when the API has none", empty, map[string]string{}, false, 0},
+		{"omitted metadata stays null when the API has none", types.MapNull(types.StringType), map[string]string{}, true, 0},
+		{"unknown prior becomes null when the API has none", types.MapUnknown(types.StringType), map[string]string{}, true, 0},
+		{"API metadata wins over a configured empty map", empty, map[string]string{"team": "a"}, false, 1},
+		{"API metadata wins over a configured value", filled, map[string]string{"env": "x", "team": "b"}, false, 2},
+		{"cleared out of band becomes null", filled, map[string]string{}, true, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, diags := reconcileClusterVariableMetadata(ctx, tt.prior, tt.api)
+			if diags.HasError() {
+				t.Fatal(diags)
+			}
+			if got.IsNull() != tt.wantNull || len(got.Elements()) != tt.wantLen {
+				t.Errorf("got null=%v len=%d, want null=%v len=%d", got.IsNull(), len(got.Elements()), tt.wantNull, tt.wantLen)
+			}
+		})
 	}
 }
