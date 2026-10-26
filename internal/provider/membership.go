@@ -113,7 +113,7 @@ func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWit
 		// default paging behavior when the field is omitted entirely.
 		if cursor != "" {
 			limit := membershipPageSize
-			after := camunda.EndCursor(cursor)
+			after := cursor
 			sqpr := camunda.SearchQueryPageRequest{}
 			if err := sqpr.FromCursorForwardPagination(camunda.CursorForwardPagination{Limit: &limit, After: &after}); err != nil {
 				return fmt.Errorf("encoding cursor: %w", err)

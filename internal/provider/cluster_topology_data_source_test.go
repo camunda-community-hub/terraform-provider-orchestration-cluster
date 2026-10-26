@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -118,18 +119,65 @@ func TestClusterTopologyDataSource_Brokers(t *testing.T) {
 	if len(brokers) != 1 {
 		t.Fatalf("got %d brokers, want 1", len(brokers))
 	}
-	broker := brokers[0].(types.Object).Attributes()
-	if broker["broker_id"].(types.String).ValueString() != "zone-a_0" || broker["port"].(types.Int32).ValueInt32() != 26501 ||
-		broker["host"].(types.String).ValueString() != "broker-0" || broker["version"].(types.String).ValueString() != "8.10.6" {
-		t.Errorf("unexpected broker: %v", broker)
+	broker := topologyObjectAttrs(t, brokers[0])
+	if got := topologyString(t, broker, "broker_id"); got != "zone-a_0" {
+		t.Errorf("broker_id = %q", got)
 	}
-	partitions := broker["partitions"].(types.List).Elements()
+	if got := topologyInt32(t, broker, "node_id"); got != 0 {
+		t.Errorf("node_id = %d", got)
+	}
+	if got := topologyString(t, broker, "host"); got != "broker-0" {
+		t.Errorf("host = %q", got)
+	}
+	if got := topologyInt32(t, broker, "port"); got != 26501 {
+		t.Errorf("port = %d", got)
+	}
+	if got := topologyString(t, broker, "version"); got != "8.10.6" {
+		t.Errorf("version = %q", got)
+	}
+
+	partitionList, ok := broker["partitions"].(types.List)
+	if !ok {
+		t.Fatalf("partitions is %T, want types.List", broker["partitions"])
+	}
+	partitions := partitionList.Elements()
 	if len(partitions) != 2 {
 		t.Fatalf("got %d partitions, want 2", len(partitions))
 	}
-	second := partitions[1].(types.Object).Attributes()
-	if second["partition_id"].(types.Int32).ValueInt32() != 2 || second["role"].(types.String).ValueString() != "follower" ||
-		second["health"].(types.String).ValueString() != "unhealthy" || second["state"].(types.String).ValueString() != "joining" {
-		t.Errorf("unexpected partition: %v", second)
+	second := topologyObjectAttrs(t, partitions[1])
+	if got := topologyInt32(t, second, "partition_id"); got != 2 {
+		t.Errorf("partition_id = %d", got)
 	}
+	for key, want := range map[string]string{"role": "follower", "health": "unhealthy", "state": "joining"} {
+		if got := topologyString(t, second, key); got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func topologyObjectAttrs(t *testing.T, v attr.Value) map[string]attr.Value {
+	t.Helper()
+	obj, ok := v.(types.Object)
+	if !ok {
+		t.Fatalf("got %T, want types.Object", v)
+	}
+	return obj.Attributes()
+}
+
+func topologyString(t *testing.T, attrs map[string]attr.Value, key string) string {
+	t.Helper()
+	v, ok := attrs[key].(types.String)
+	if !ok {
+		t.Fatalf("%s is %T, want types.String", key, attrs[key])
+	}
+	return v.ValueString()
+}
+
+func topologyInt32(t *testing.T, attrs map[string]attr.Value, key string) int32 {
+	t.Helper()
+	v, ok := attrs[key].(types.Int32)
+	if !ok {
+		t.Fatalf("%s is %T, want types.Int32", key, attrs[key])
+	}
+	return v.ValueInt32()
 }
