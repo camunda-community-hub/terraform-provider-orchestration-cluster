@@ -98,3 +98,20 @@ jobs:
         timeout-minutes: 20
         env:
           TF_ACC: "1"
+
+  # Single stable check name for branch protection: matrix job names change with the versions,
+  # so require this job instead of each matrix entry. It runs even when the matrix fails or is
+  # skipped, because a skipped required check would otherwise count as passing.
+  test-matrix:
+    name: Acceptance Tests
+    needs: test
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm the test matrix passed
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: |
+          echo "Test matrix result: ${RESULT}"
+          test "${RESULT}" = "success"
