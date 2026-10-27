@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -68,10 +69,8 @@ func (r *AuthorizationResource) Schema(ctx context.Context, req resource.SchemaR
 				Required:            true,
 			},
 			"resource_type": schema.StringAttribute{
-				MarkdownDescription: "The type of resource that the permissions relate to. Must be one of AUDIT_LOG, " +
-					"AUTHORIZATION, BATCH, CLUSTER_VARIABLE, COMPONENT, DECISION_DEFINITION, " +
-					"DECISION_REQUIREMENTS_DEFINITION, DOCUMENT, EXPRESSION, GLOBAL_LISTENER, GROUP, MAPPING_RULE, " +
-					"MESSAGE, PROCESS_DEFINITION, RESOURCE, ROLE, SYSTEM, TENANT, USER, or USER_TASK.",
+				MarkdownDescription: "The type of resource that the permissions relate to. Must be one of " +
+					authorizationResourceTypesMarkdown() + ".",
 				Required: true,
 				Validators: []validator.String{
 					resourceTypeEnumValidator{},
@@ -213,6 +212,44 @@ func (v ownerTypeEnumValidator) ValidateString(ctx context.Context, req validato
 			fmt.Sprintf("%s must be one of USER, CLIENT, ROLE, GROUP, MAPPING_RULE, or UNSPECIFIED; got %q.", req.Path, req.ConfigValue.ValueString()),
 		)
 	}
+}
+
+// authorizationResourceTypes lists the resource types of the API's ResourceTypeEnum for the
+// attribute description. Validation itself uses the generated enum, so a type missing here is
+// still accepted, it is only missing from the docs.
+var authorizationResourceTypes = []camunda.ResourceTypeEnum{
+	camunda.ResourceTypeEnumAUDITLOG,
+	camunda.ResourceTypeEnumAUTHORIZATION,
+	camunda.ResourceTypeEnumBACKUP,
+	camunda.ResourceTypeEnumBATCH,
+	camunda.ResourceTypeEnumCLUSTERVARIABLE,
+	camunda.ResourceTypeEnumCOMPONENT,
+	camunda.ResourceTypeEnumDECISIONDEFINITION,
+	camunda.ResourceTypeEnumDECISIONREQUIREMENTSDEFINITION,
+	camunda.ResourceTypeEnumDOCUMENT,
+	camunda.ResourceTypeEnumEXPORTER,
+	camunda.ResourceTypeEnumEXPRESSION,
+	camunda.ResourceTypeEnumGLOBALLISTENER,
+	camunda.ResourceTypeEnumGROUP,
+	camunda.ResourceTypeEnumMAPPINGRULE,
+	camunda.ResourceTypeEnumMESSAGE,
+	camunda.ResourceTypeEnumPROCESSDEFINITION,
+	camunda.ResourceTypeEnumRESOURCE,
+	camunda.ResourceTypeEnumROLE,
+	camunda.ResourceTypeEnumSECRET,
+	camunda.ResourceTypeEnumSYSTEM,
+	camunda.ResourceTypeEnumTENANT,
+	camunda.ResourceTypeEnumUSER,
+	camunda.ResourceTypeEnumUSERTASK,
+}
+
+func authorizationResourceTypesMarkdown() string {
+	names := make([]string, len(authorizationResourceTypes))
+	for i, t := range authorizationResourceTypes {
+		names[i] = string(t)
+	}
+
+	return strings.Join(names[:len(names)-1], ", ") + ", or " + names[len(names)-1]
 }
 
 // resourceTypeEnumValidator rejects a resource_type value that isn't a known member of the
