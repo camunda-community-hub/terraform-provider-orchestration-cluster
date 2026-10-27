@@ -1,3 +1,9 @@
+## Unreleased
+
+BUG FIXES:
+
+* `orchestration_cluster_authorization`: the `resource_type` documentation now lists `BACKUP`, `EXPORTER` and `SECRET`. They were already accepted by the provider but missing from the docs.
+
 ## 0.3.0 (October 27, 2026)
 
 BREAKING CHANGES:

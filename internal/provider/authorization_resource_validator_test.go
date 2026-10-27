@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -220,5 +221,27 @@ func stringOrNullTypesValue(s *string) types.String {
 		return types.StringUnknown()
 	default:
 		return types.StringValue(*s)
+	}
+}
+
+func TestResourceTypeEnumValidator_AcceptsListedTypes(t *testing.T) {
+	for _, resourceType := range authorizationResourceTypes {
+		t.Run(string(resourceType), func(t *testing.T) {
+			resp := &validator.StringResponse{}
+			resourceTypeEnumValidator{}.ValidateString(context.Background(), validator.StringRequest{
+				Path:        path.Root("resource_type"),
+				ConfigValue: types.StringValue(string(resourceType)),
+			}, resp)
+
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("%s rejected: %v", resourceType, resp.Diagnostics)
+			}
+		})
+	}
+
+	for _, want := range []string{"SECRET", "EXPORTER", "BACKUP"} {
+		if !strings.Contains(authorizationResourceTypesMarkdown(), want) {
+			t.Errorf("description does not list %s", want)
+		}
 	}
 }
