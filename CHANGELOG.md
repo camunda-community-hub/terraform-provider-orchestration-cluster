@@ -1,3 +1,9 @@
+## 0.3.2 (November 2, 2026)
+
+BUG FIXES:
+
+* The membership resources (`orchestration_cluster_group_member_*`, `orchestration_cluster_role_member_*` and `orchestration_cluster_tenant_member_*`) and the `orchestration_cluster_group_members`, `orchestration_cluster_role_members` and `orchestration_cluster_tenant_members` data sources no longer stop paging through a member search once the response's `totalItems` has been reached. On an eventually consistent read side `totalItems` can lag behind the members that are actually assigned, so a lookup could end before the page that holds the member. They now page until a page is empty or the end cursor is empty or does not advance.
+
 ## 0.3.1 (October 27, 2026)
 
 BUG FIXES:
