@@ -3,8 +3,10 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -141,6 +143,79 @@ func TestMembershipContains_pagination(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestMembershipContains_groupLargerThanOnePage serves a group of 160 users the way the cluster
+// does: the first request without a page returns the server default of 100 items, and follow-up
+// requests honour the cursor and limit. Every member, including those past the first page,
+// must be found.
+func TestMembershipContains_groupLargerThanOnePage(t *testing.T) {
+	const total = 160
+	const defaultPageSize = 100
+	usernames := make([]string, total)
+	for i := range usernames {
+		usernames[i] = fmt.Sprintf("user%03d@example.com", i)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Page struct {
+				After string `json:"after"`
+				Limit int    `json:"limit"`
+			} `json:"page"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+
+		start, limit := 0, defaultPageSize
+		if body.Page.After != "" {
+			var err error
+			if start, err = strconv.Atoi(body.Page.After); err != nil {
+				http.Error(w, "bad cursor", http.StatusBadRequest)
+				return
+			}
+		}
+		if body.Page.Limit > 0 {
+			limit = body.Page.Limit
+		}
+		end := min(start+limit, total)
+
+		items := make([]map[string]string, 0, end-start)
+		for _, u := range usernames[start:end] {
+			items = append(items, map[string]string{"username": u})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": items,
+			"page": map[string]any{
+				"endCursor":         strconv.Itoa(end),
+				"totalItems":        total,
+				"hasMoreTotalItems": false,
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+	client, err := camunda.NewClientWithResponses(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i, username := range usernames {
+		got, err := groupMemberUser.contains(context.Background(), client, "PDPTaskUser", username)
+		if err != nil {
+			t.Fatalf("%s: %v", username, err)
+		}
+		if !got {
+			t.Errorf("member %d (%s) not found", i, username)
+		}
+	}
+
+	got, err := groupMemberUser.contains(context.Background(), client, "PDPTaskUser", "absent@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got {
+		t.Error("absent member reported as found")
 	}
 }
 
