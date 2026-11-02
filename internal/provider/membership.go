@@ -46,9 +46,8 @@ type membershipDef struct {
 	assign   func(ctx context.Context, c *camunda.ClientWithResponses, ownerId, memberId string) (membershipResponse, error)
 	unassign func(ctx context.Context, c *camunda.ClientWithResponses, ownerId, memberId string) (membershipResponse, error)
 	search   func(ctx context.Context, c *camunda.ClientWithResponses, ownerId string, body camunda.SearchQueryRequest) (membershipResponse, error)
-	// decodePage extracts the member IDs, the end cursor and the exact total number of matching
-	// members (-1 if unknown or capped) from a search response body.
-	decodePage func(body []byte) (ids []string, endCursor string, exactTotal int64, err error)
+	// decodePage extracts the member IDs and the end cursor from a search response body.
+	decodePage func(body []byte) (ids []string, endCursor string, err error)
 }
 
 func (d membershipDef) ownerAttr() string  { return d.ownerLabel + "_id" }
@@ -59,18 +58,16 @@ func (d membershipDef) memberName() string { return strings.ReplaceAll(d.memberL
 
 // decodeMembershipPage builds a membershipDef.decodePage for a search result whose items are
 // of type T, with idOf extracting the member ID from an item.
-func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, string, int64, error) {
-	return func(body []byte) ([]string, string, int64, error) {
+func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, string, error) {
+	return func(body []byte) ([]string, string, error) {
 		var page struct {
 			Items []T `json:"items"`
 			Page  struct {
-				EndCursor         *string `json:"endCursor"`
-				TotalItems        *int64  `json:"totalItems"`
-				HasMoreTotalItems bool    `json:"hasMoreTotalItems"`
+				EndCursor *string `json:"endCursor"`
 			} `json:"page"`
 		}
 		if err := json.Unmarshal(body, &page); err != nil {
-			return nil, "", -1, fmt.Errorf("decode: %w", err)
+			return nil, "", fmt.Errorf("decode: %w", err)
 		}
 		ids := make([]string, len(page.Items))
 		for i, item := range page.Items {
@@ -80,11 +77,7 @@ func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, st
 		if page.Page.EndCursor != nil {
 			cursor = *page.Page.EndCursor
 		}
-		total := int64(-1)
-		if page.Page.TotalItems != nil && !page.Page.HasMoreTotalItems {
-			total = *page.Page.TotalItems
-		}
-		return ids, cursor, total, nil
+		return ids, cursor, nil
 	}
 }
 
@@ -93,7 +86,7 @@ func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, st
 // the members data sources use them for member types that have no assignment resource.
 type memberSearch struct {
 	search     func(ctx context.Context, c *camunda.ClientWithResponses, ownerId string, body camunda.SearchQueryRequest) (membershipResponse, error)
-	decodePage func(body []byte) (ids []string, endCursor string, exactTotal int64, err error)
+	decodePage func(body []byte) (ids []string, endCursor string, err error)
 }
 
 // forEachPage pages through all members of the owner and calls visit with the member IDs of
@@ -101,12 +94,10 @@ type memberSearch struct {
 // message "not_found" if the owner itself is not found.
 //
 // Pagination stops as soon as visit returns true, a page has no items, the end cursor is
-// empty, the end cursor did not advance, or the exact totalItems has been consumed.
-// hasMoreTotalItems is not a next-page flag: it only says that totalItems is a capped lower
-// bound, so totalItems is trusted only when it is false.
+// empty, or the end cursor did not advance. totalItems is deliberately not used: on an
+// eventually consistent read side it can lag behind the members that are actually assigned.
 func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWithResponses, ownerId string, visit func(ids []string) (stop bool)) error {
 	var cursor string
-	var seen int64
 	for {
 		body := camunda.SearchQueryRequest{}
 		// Only set Page once there is an actual cursor to send; the server applies its own
@@ -132,7 +123,7 @@ func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWit
 			return fmt.Errorf("HTTP %d", searchResp.Status)
 		}
 
-		ids, endCursor, total, err := s.decodePage(searchResp.Body)
+		ids, endCursor, err := s.decodePage(searchResp.Body)
 		if err != nil {
 			return err
 		}
@@ -140,8 +131,7 @@ func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWit
 			return nil
 		}
 
-		seen += int64(len(ids))
-		if len(ids) == 0 || endCursor == "" || endCursor == cursor || (total >= 0 && seen >= total) {
+		if len(ids) == 0 || endCursor == "" || endCursor == cursor {
 			return nil
 		}
 		cursor = endCursor

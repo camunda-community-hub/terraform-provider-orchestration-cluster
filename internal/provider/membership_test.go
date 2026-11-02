@@ -92,13 +92,14 @@ func TestMembershipContains_pagination(t *testing.T) {
 			wantRequests: 2,
 		},
 		{
-			name: "stops when the exact total is consumed",
+			name: "ignores an exact total and pages until a page is empty",
 			pages: []string{
 				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1","totalItems":2}}`,
 				`{"items":[{"clientId":"b"}],"page":{"endCursor":"c2","totalItems":2}}`,
+				`{"items":[],"page":{"endCursor":"c3","totalItems":2}}`,
 			},
 			want:         false,
-			wantRequests: 2,
+			wantRequests: 3,
 		},
 		{
 			name: "ignores a capped total",
