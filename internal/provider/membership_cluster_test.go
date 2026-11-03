@@ -99,19 +99,18 @@ func TestAccMembership_groupLargerThanOnePage(t *testing.T) {
 }
 
 // logGroupPages logs the shape of the first two pages of the group's user search: the item
-// count, end cursor and totals. The second page is requested with the same cursor and limit
-// that forEachPage uses.
+// count, end cursor and totals. The second page is requested by offset, as forEachPage does.
 func logGroupPages(t *testing.T, ctx context.Context, client *camunda.ClientWithResponses, groupId string) {
 	t.Helper()
 
-	var cursor string
+	var seen int32
 	for page := 1; page <= 2; page++ {
 		body := camunda.SearchQueryRequest{}
-		if cursor != "" {
+		if seen > 0 {
 			limit := membershipPageSize
-			after := cursor
+			from := seen
 			sqpr := camunda.SearchQueryPageRequest{}
-			if err := sqpr.FromCursorForwardPagination(camunda.CursorForwardPagination{Limit: &limit, After: &after}); err != nil {
+			if err := sqpr.FromOffsetPagination(camunda.OffsetPagination{From: &from, Limit: &limit}); err != nil {
 				t.Fatal(err)
 			}
 			body.Page = &sqpr
@@ -139,11 +138,11 @@ func logGroupPages(t *testing.T, ctx context.Context, client *camunda.ClientWith
 		if decoded.Page.TotalItems != nil {
 			totalItems = *decoded.Page.TotalItems
 		}
-		t.Logf("page %d: HTTP %d, %d items, endCursor=%q, totalItems=%d, hasMoreTotalItems=%v",
-			page, resp.StatusCode(), len(decoded.Items), endCursor, totalItems, decoded.Page.HasMoreTotalItems)
-		if endCursor == "" {
+		t.Logf("page %d (from %d): HTTP %d, %d items, endCursor=%q, totalItems=%d, hasMoreTotalItems=%v",
+			page, seen, resp.StatusCode(), len(decoded.Items), endCursor, totalItems, decoded.Page.HasMoreTotalItems)
+		if len(decoded.Items) == 0 {
 			return
 		}
-		cursor = endCursor
+		seen += int32(len(decoded.Items))
 	}
 }
