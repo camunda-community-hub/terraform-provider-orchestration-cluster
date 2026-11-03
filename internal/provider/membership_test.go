@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -52,6 +53,7 @@ func TestMembershipContains_pagination(t *testing.T) {
 		wantRequests int
 		// wantFroms is the page.from expected on each request after the first.
 		wantFroms []float64
+		wantErr   string
 	}{
 		{
 			name:         "found on first page stops immediately",
@@ -118,21 +120,26 @@ func TestMembershipContains_pagination(t *testing.T) {
 			wantFroms:    []float64{1},
 		},
 		{
-			name: "stops when a page repeats the previous one",
+			name: "fails when a page repeats the previous one",
 			pages: []string{
 				`{"items":[{"clientId":"a"}],"page":{}}`,
 				`{"items":[{"clientId":"a"}],"page":{}}`,
 			},
-			want:         false,
 			wantRequests: 2,
 			wantFroms:    []float64{1},
+			wantErr:      "pagination did not advance",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client, requests := membershipSearchServer(t, tt.pages)
 			got, err := tenantMemberClient.contains(context.Background(), client, "tenant", "target")
-			if err != nil {
+			switch {
+			case tt.wantErr != "":
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("err = %v, want it to contain %q", err, tt.wantErr)
+				}
+			case err != nil:
 				t.Fatal(err)
 			}
 			if got != tt.want {

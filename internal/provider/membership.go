@@ -93,8 +93,10 @@ type memberSearch struct {
 // unreachable. totalItems is not used either: on an eventually consistent read side it can
 // lag behind the members that are actually assigned.
 //
-// Pagination stops as soon as visit returns true, a page has no items, or a page repeats the
-// previous one, which is what a server that ignores the offset would return.
+// Pagination stops as soon as visit returns true or a page has no items. A page that repeats the
+// previous one is what a server that ignores the offset would return. That is reported as an
+// error, not as the end of the members, so that a caller does not treat the members it never
+// saw as unassigned.
 func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWithResponses, ownerId string, visit func(ids []string) (stop bool)) error {
 	var seen int32
 	var previous []string
@@ -131,8 +133,11 @@ func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWit
 			return nil
 		}
 
-		if len(ids) == 0 || slices.Equal(ids, previous) {
+		if len(ids) == 0 {
 			return nil
+		}
+		if slices.Equal(ids, previous) {
+			return fmt.Errorf("pagination did not advance: the page at offset %d repeats the previous page", seen)
 		}
 		seen += int32(len(ids))
 		previous = ids
