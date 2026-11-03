@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"sync"
 	"testing"
 
@@ -51,73 +50,82 @@ func TestMembershipContains_pagination(t *testing.T) {
 		pages        []string
 		want         bool
 		wantRequests int
+		// wantFroms is the page.from expected on each request after the first.
+		wantFroms []float64
 	}{
 		{
 			name:         "found on first page stops immediately",
-			pages:        []string{`{"items":[{"clientId":"a"},{"clientId":"target"}],"page":{"endCursor":"c1","hasMoreTotalItems":true}}`},
+			pages:        []string{`{"items":[{"clientId":"a"},{"clientId":"target"}],"page":{"hasMoreTotalItems":true}}`},
 			want:         true,
 			wantRequests: 1,
 		},
 		{
-			name: "follows cursor to later page",
+			name: "follows the offset to a later page",
 			pages: []string{
-				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1"}}`,
-				`{"items":[{"clientId":"target"}],"page":{"endCursor":"c2"}}`,
+				`{"items":[{"clientId":"a"}],"page":{}}`,
+				`{"items":[{"clientId":"target"}],"page":{}}`,
 			},
 			want:         true,
 			wantRequests: 2,
+			wantFroms:    []float64{1},
 		},
 		{
-			name: "stops when end cursor is empty",
+			name: "advances the offset by the items seen",
 			pages: []string{
-				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1"}}`,
-				`{"items":[{"clientId":"b"}],"page":{"endCursor":""}}`,
+				`{"items":[{"clientId":"a"},{"clientId":"b"}],"page":{}}`,
+				`{"items":[{"clientId":"c"}],"page":{}}`,
+				`{"items":[],"page":{}}`,
 			},
 			want:         false,
-			wantRequests: 2,
+			wantRequests: 3,
+			wantFroms:    []float64{2, 3},
 		},
 		{
-			name:         "stops when end cursor is absent",
-			pages:        []string{`{"items":[{"clientId":"a"}],"page":{}}`},
+			name:         "stops when the first page has no items",
+			pages:        []string{`{"items":[],"page":{}}`},
 			want:         false,
 			wantRequests: 1,
 		},
 		{
-			name: "stops when a page has no items even with a cursor",
+			name: "ignores the end cursor",
 			pages: []string{
 				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1"}}`,
-				`{"items":[],"page":{"endCursor":"c2","hasMoreTotalItems":true}}`,
+				`{"items":[{"clientId":"target"}],"page":{"endCursor":""}}`,
 			},
-			want:         false,
+			want:         true,
 			wantRequests: 2,
+			wantFroms:    []float64{1},
 		},
 		{
 			name: "ignores an exact total and pages until a page is empty",
 			pages: []string{
-				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1","totalItems":2}}`,
-				`{"items":[{"clientId":"b"}],"page":{"endCursor":"c2","totalItems":2}}`,
-				`{"items":[],"page":{"endCursor":"c3","totalItems":2}}`,
+				`{"items":[{"clientId":"a"}],"page":{"totalItems":2}}`,
+				`{"items":[{"clientId":"b"}],"page":{"totalItems":2}}`,
+				`{"items":[],"page":{"totalItems":2}}`,
 			},
 			want:         false,
 			wantRequests: 3,
+			wantFroms:    []float64{1, 2},
 		},
 		{
 			name: "ignores a capped total",
 			pages: []string{
-				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1","totalItems":1,"hasMoreTotalItems":true}}`,
-				`{"items":[{"clientId":"target"}],"page":{"endCursor":"c2","totalItems":1,"hasMoreTotalItems":true}}`,
+				`{"items":[{"clientId":"a"}],"page":{"totalItems":1,"hasMoreTotalItems":true}}`,
+				`{"items":[{"clientId":"target"}],"page":{"totalItems":1,"hasMoreTotalItems":true}}`,
 			},
 			want:         true,
 			wantRequests: 2,
+			wantFroms:    []float64{1},
 		},
 		{
-			name: "stops when the cursor does not advance",
+			name: "stops when a page repeats the previous one",
 			pages: []string{
-				`{"items":[{"clientId":"a"}],"page":{"endCursor":"c1"}}`,
-				`{"items":[{"clientId":"b"}],"page":{"endCursor":"c1"}}`,
+				`{"items":[{"clientId":"a"}],"page":{}}`,
+				`{"items":[{"clientId":"a"}],"page":{}}`,
 			},
 			want:         false,
 			wantRequests: 2,
+			wantFroms:    []float64{1},
 		},
 	}
 	for _, tt := range tests {
@@ -137,23 +145,28 @@ func TestMembershipContains_pagination(t *testing.T) {
 			if _, hasPage := reqs[0]["page"]; hasPage {
 				t.Errorf("first request must omit page, got %v", reqs[0])
 			}
-			if tt.wantRequests > 1 {
-				page, _ := reqs[1]["page"].(map[string]any)
-				if page["after"] != "c1" {
-					t.Errorf("second request page = %v, want after=c1", page)
+			for i, wantFrom := range tt.wantFroms {
+				page, _ := reqs[i+1]["page"].(map[string]any)
+				if page["from"] != wantFrom || page["limit"] != float64(membershipPageSize) {
+					t.Errorf("request %d page = %v, want from=%v limit=%d", i+2, page, wantFrom, membershipPageSize)
+				}
+				if _, hasAfter := page["after"]; hasAfter {
+					t.Errorf("request %d must not page by cursor, got %v", i+2, page)
 				}
 			}
 		})
 	}
 }
 
-// TestMembershipContains_groupLargerThanOnePage serves a group of 160 users the way the cluster
-// does: the first request without a page returns the server default of 100 items, and follow-up
-// requests honour the cursor and limit. Every member, including those past the first page,
-// must be found.
+// TestMembershipContains_groupLargerThanOnePage serves a group of 160 users the way a SaaS
+// cluster was observed to: the first request without a page returns 100 items, but the end
+// cursor of that page is Long.MAX_VALUE, so searching after it returns nothing (see
+// camunda/camunda#68013). Requests with an offset are honoured. Every member, including those
+// past the first page, must still be found.
 func TestMembershipContains_groupLargerThanOnePage(t *testing.T) {
 	const total = 160
 	const defaultPageSize = 100
+	const brokenEndCursor = "WzkyMjMzNzIwMzY4NTQ3NzU4MDdd" // base64 of [9223372036854775807]
 	usernames := make([]string, total)
 	for i := range usernames {
 		usernames[i] = fmt.Sprintf("user%03d@example.com", i)
@@ -163,37 +176,31 @@ func TestMembershipContains_groupLargerThanOnePage(t *testing.T) {
 		var body struct {
 			Page struct {
 				After string `json:"after"`
+				From  int    `json:"from"`
 				Limit int    `json:"limit"`
 			} `json:"page"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 
-		start, limit := 0, defaultPageSize
-		if body.Page.After != "" {
-			var err error
-			if start, err = strconv.Atoi(body.Page.After); err != nil {
-				http.Error(w, "bad cursor", http.StatusBadRequest)
-				return
-			}
-		}
+		start, limit := body.Page.From, defaultPageSize
 		if body.Page.Limit > 0 {
 			limit = body.Page.Limit
 		}
 		end := min(start+limit, total)
+		if body.Page.After != "" || start > total {
+			start, end = 0, 0
+		}
 
 		items := make([]map[string]string, 0, end-start)
 		for _, u := range usernames[start:end] {
 			items = append(items, map[string]string{"username": u})
 		}
+		page := map[string]any{"totalItems": total, "hasMoreTotalItems": false}
+		if len(items) > 0 {
+			page["endCursor"] = brokenEndCursor
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"items": items,
-			"page": map[string]any{
-				"endCursor":         strconv.Itoa(end),
-				"totalItems":        total,
-				"hasMoreTotalItems": false,
-			},
-		})
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": items, "page": page})
 	}))
 	t.Cleanup(server.Close)
 	client, err := camunda.NewClientWithResponses(server.URL)
@@ -217,6 +224,14 @@ func TestMembershipContains_groupLargerThanOnePage(t *testing.T) {
 	}
 	if got {
 		t.Error("absent member reported as found")
+	}
+
+	all, err := memberSearchOf(groupMemberUser).all(context.Background(), client, "PDPTaskUser")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != total {
+		t.Errorf("all returned %d members, want %d", len(all), total)
 	}
 }
 

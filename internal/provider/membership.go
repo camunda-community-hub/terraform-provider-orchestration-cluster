@@ -46,8 +46,8 @@ type membershipDef struct {
 	assign   func(ctx context.Context, c *camunda.ClientWithResponses, ownerId, memberId string) (membershipResponse, error)
 	unassign func(ctx context.Context, c *camunda.ClientWithResponses, ownerId, memberId string) (membershipResponse, error)
 	search   func(ctx context.Context, c *camunda.ClientWithResponses, ownerId string, body camunda.SearchQueryRequest) (membershipResponse, error)
-	// decodePage extracts the member IDs and the end cursor from a search response body.
-	decodePage func(body []byte) (ids []string, endCursor string, err error)
+	// decodePage extracts the member IDs from a search response body.
+	decodePage func(body []byte) (ids []string, err error)
 }
 
 func (d membershipDef) ownerAttr() string  { return d.ownerLabel + "_id" }
@@ -58,26 +58,19 @@ func (d membershipDef) memberName() string { return strings.ReplaceAll(d.memberL
 
 // decodeMembershipPage builds a membershipDef.decodePage for a search result whose items are
 // of type T, with idOf extracting the member ID from an item.
-func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, string, error) {
-	return func(body []byte) ([]string, string, error) {
+func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, error) {
+	return func(body []byte) ([]string, error) {
 		var page struct {
 			Items []T `json:"items"`
-			Page  struct {
-				EndCursor *string `json:"endCursor"`
-			} `json:"page"`
 		}
 		if err := json.Unmarshal(body, &page); err != nil {
-			return nil, "", fmt.Errorf("decode: %w", err)
+			return nil, fmt.Errorf("decode: %w", err)
 		}
 		ids := make([]string, len(page.Items))
 		for i, item := range page.Items {
 			ids[i] = idOf(item)
 		}
-		cursor := ""
-		if page.Page.EndCursor != nil {
-			cursor = *page.Page.EndCursor
-		}
-		return ids, cursor, nil
+		return ids, nil
 	}
 }
 
@@ -86,28 +79,35 @@ func decodeMembershipPage[T any](idOf func(T) string) func([]byte) ([]string, st
 // the members data sources use them for member types that have no assignment resource.
 type memberSearch struct {
 	search     func(ctx context.Context, c *camunda.ClientWithResponses, ownerId string, body camunda.SearchQueryRequest) (membershipResponse, error)
-	decodePage func(body []byte) (ids []string, endCursor string, err error)
+	decodePage func(body []byte) (ids []string, err error)
 }
 
 // forEachPage pages through all members of the owner and calls visit with the member IDs of
 // each page until visit returns true or the members are exhausted. It returns an error with
 // message "not_found" if the owner itself is not found.
 //
-// Pagination stops as soon as visit returns true, a page has no items, the end cursor is
-// empty, or the end cursor did not advance. totalItems is deliberately not used: on an
-// eventually consistent read side it can lag behind the members that are actually assigned.
+// It pages by offset, not by cursor: after a first request that leaves the page size to the
+// server, each further request asks for the members from the number already seen. Cursor
+// paging is not used because the cluster can return an end cursor that does not point past
+// the last item of the page (camunda/camunda#68013), which makes every later member
+// unreachable. totalItems is not used either: on an eventually consistent read side it can
+// lag behind the members that are actually assigned.
+//
+// Pagination stops as soon as visit returns true, a page has no items, or a page repeats the
+// previous one, which is what a server that ignores the offset would return.
 func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWithResponses, ownerId string, visit func(ids []string) (stop bool)) error {
-	var cursor string
+	var seen int32
+	var previous []string
 	for {
 		body := camunda.SearchQueryRequest{}
-		// Only set Page once there is an actual cursor to send; the server applies its own
-		// default paging behavior when the field is omitted entirely.
-		if cursor != "" {
+		// Only set Page once there is an offset to send; the server applies its own default
+		// paging behavior when the field is omitted entirely.
+		if seen > 0 {
 			limit := membershipPageSize
-			after := cursor
+			from := seen
 			sqpr := camunda.SearchQueryPageRequest{}
-			if err := sqpr.FromCursorForwardPagination(camunda.CursorForwardPagination{Limit: &limit, After: &after}); err != nil {
-				return fmt.Errorf("encoding cursor: %w", err)
+			if err := sqpr.FromOffsetPagination(camunda.OffsetPagination{From: &from, Limit: &limit}); err != nil {
+				return fmt.Errorf("encoding offset: %w", err)
 			}
 			body.Page = &sqpr
 		}
@@ -123,7 +123,7 @@ func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWit
 			return fmt.Errorf("HTTP %d", searchResp.Status)
 		}
 
-		ids, endCursor, err := s.decodePage(searchResp.Body)
+		ids, err := s.decodePage(searchResp.Body)
 		if err != nil {
 			return err
 		}
@@ -131,10 +131,11 @@ func (s memberSearch) forEachPage(ctx context.Context, client *camunda.ClientWit
 			return nil
 		}
 
-		if len(ids) == 0 || endCursor == "" || endCursor == cursor {
+		if len(ids) == 0 || slices.Equal(ids, previous) {
 			return nil
 		}
-		cursor = endCursor
+		seen += int32(len(ids))
+		previous = ids
 	}
 }
 
