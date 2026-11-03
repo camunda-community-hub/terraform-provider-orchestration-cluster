@@ -1,3 +1,9 @@
+## 0.3.3 (November 3, 2026)
+
+BUG FIXES:
+
+* The membership resources (`orchestration_cluster_group_member_*`, `orchestration_cluster_role_member_*` and `orchestration_cluster_tenant_member_*`) and the `orchestration_cluster_group_members`, `orchestration_cluster_role_members` and `orchestration_cluster_tenant_members` data sources now page through a member search by offset instead of by cursor. A cluster can return an end cursor that does not point past the last item of the first page, which made every member beyond the first page unreachable: an assignment to a large group (more than 100 members) was created but never confirmed, so the create waited for the full `consistency_timeout` and then only warned ("Consistency Check Failed").
+
 ## 0.3.2 (November 2, 2026)
 
 BUG FIXES:
