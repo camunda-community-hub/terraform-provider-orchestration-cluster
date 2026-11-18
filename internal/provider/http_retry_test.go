@@ -36,6 +36,7 @@ func testRetryClient(maxRetries int, slept *[]time.Duration) *retryingHTTPClient
 	return &retryingHTTPClient{
 		inner:      http.DefaultClient,
 		maxRetries: maxRetries,
+		maxElapsed: retryMaxElapsed,
 		sleep: func(_ context.Context, d time.Duration) error {
 			*slept = append(*slept, d)
 			return nil
@@ -144,6 +145,7 @@ func TestRetryingHTTPClient_StopsWhenContextCancelled(t *testing.T) {
 	c := &retryingHTTPClient{
 		inner:      http.DefaultClient,
 		maxRetries: 5,
+		maxElapsed: retryMaxElapsed,
 		sleep:      func(ctx context.Context, _ time.Duration) error { cancel(); return ctx.Err() },
 		jitter:     func(d time.Duration) time.Duration { return d },
 	}
@@ -176,4 +178,48 @@ func TestRetryAfter(t *testing.T) {
 			t.Errorf("retryAfter(%q) accepted, want rejected", value)
 		}
 	}
+}
+
+func TestRetryingHTTPClient_StalledRetryIsBoundedByDeadline(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		<-r.Context().Done()
+	}))
+	t.Cleanup(srv.Close)
+
+	var slept []time.Duration
+	c := testRetryClient(3, &slept)
+	c.maxElapsed = 100 * time.Millisecond
+	c.jitter = func(time.Duration) time.Duration { return time.Millisecond }
+
+	start := time.Now()
+	_, err := doRequest(t, c, http.MethodGet, srv.URL, "")
+	if err == nil || !strings.Contains(err.Error(), "did not complete within") {
+		t.Fatalf("err %v, want a deadline error", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("took %s, want the stalled retry cut off near the 100ms deadline", elapsed)
+	}
+}
+
+func TestRetryingHTTPClient_SuccessBodyOutlivesDeadline(t *testing.T) {
+	srv, _, _ := flakyServer(t, 1, http.StatusServiceUnavailable, nil)
+	var slept []time.Duration
+	c := testRetryClient(3, &slept)
+	c.maxElapsed = 50 * time.Millisecond
+	c.jitter = func(time.Duration) time.Duration { return time.Millisecond }
+
+	resp, err := doRequest(t, c, http.MethodGet, srv.URL, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if _, err := io.ReadAll(resp.Body); err != nil {
+		t.Fatalf("reading the body after the deadline: %v", err)
+	}
+	resp.Body.Close()
 }

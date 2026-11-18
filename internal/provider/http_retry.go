@@ -28,8 +28,12 @@ const (
 	// retryMaxDelay caps a single backoff, including a server supplied Retry-After.
 	retryMaxDelay = 10 * time.Second
 
-	// retryMaxElapsed bounds the total time spent retrying one request.
+	// retryMaxElapsed bounds the time from the first response to the end of the last retry,
+	// covering backoff waits, retry attempts and the draining of discarded responses.
 	retryMaxElapsed = 30 * time.Second
+
+	// maxDrainBytes is how much of a discarded 5xx response body is read to let its connection be reused.
+	maxDrainBytes = 4 << 10
 )
 
 // retryingHTTPClient wraps an HttpRequestDoer and repeats a request that got a 5xx response, with
@@ -43,6 +47,9 @@ type retryingHTTPClient struct {
 	inner      camunda.HttpRequestDoer
 	maxRetries int
 
+	// maxElapsed is retryMaxElapsed, replaced in tests.
+	maxElapsed time.Duration
+
 	// sleep and jitter are replaced in tests.
 	sleep  func(ctx context.Context, d time.Duration) error
 	jitter func(d time.Duration) time.Duration
@@ -52,22 +59,37 @@ func newRetryingHTTPClient(inner camunda.HttpRequestDoer, maxRetries int) camund
 	if maxRetries <= 0 {
 		return inner
 	}
-	return &retryingHTTPClient{inner: inner, maxRetries: maxRetries, sleep: sleepContext, jitter: fullJitter}
+	return &retryingHTTPClient{inner: inner, maxRetries: maxRetries, maxElapsed: retryMaxElapsed, sleep: sleepContext, jitter: fullJitter}
 }
 
 func (c *retryingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-	start := time.Now()
+	var deadline time.Time
 
+	cur := req
+	var cancel context.CancelFunc = func() {}
 	for attempt := 1; ; attempt++ {
-		resp, err := c.inner.Do(req)
-		if err != nil || !retryable(req, resp.StatusCode) {
-			return resp, err
+		resp, err := c.inner.Do(cur)
+		if err != nil {
+			cancel()
+			if attempt > 1 && ctx.Err() == nil {
+				return nil, fmt.Errorf("%s %s did not complete within %s of retrying: %w", req.Method, redactURL(req.URL), c.maxElapsed, err)
+			}
+			return nil, err
+		}
+		if attempt == 1 {
+			deadline = time.Now().Add(c.maxElapsed)
+		}
+		if !retryable(req, resp.StatusCode) {
+			resp.Body = &cancelOnClose{ReadCloser: resp.Body, cancel: cancel}
+			return resp, nil
 		}
 
 		delay := c.backoff(attempt, resp)
-		if attempt > c.maxRetries || time.Since(start)+delay > retryMaxElapsed || !rewindBody(req) {
-			resp.Body.Close()
+		body, replayable := replayBody(req)
+		if attempt > c.maxRetries || time.Now().Add(delay).After(deadline) || !replayable {
+			drainBody(resp, deadline)
+			cancel()
 			return nil, fmt.Errorf("%s %s failed with status %d after %d attempt(s)", req.Method, redactURL(req.URL), resp.StatusCode, attempt)
 		}
 
@@ -78,13 +100,43 @@ func (c *retryingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			"attempt":     attempt,
 			"delay":       delay.String(),
 		})
-		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		drainBody(resp, deadline)
+		cancel()
 
 		if err := c.sleep(ctx, delay); err != nil {
 			return nil, err
 		}
+
+		// Retries run under a context that expires at the shared deadline, so a stalled attempt
+		// cannot outlive it. The first attempt is not bounded this way: a slow success is not an
+		// error. The context is cancelled when the returned body is closed (see cancelOnClose).
+		var attemptCtx context.Context
+		attemptCtx, cancel = context.WithDeadline(ctx, deadline)
+		cur = req.Clone(attemptCtx)
+		cur.Body = body
 	}
+}
+
+// drainBody discards what is left of a response we are about to retry or give up on so the
+// connection can be reused, but never reads past deadline or more than a few KiB.
+func drainBody(resp *http.Response, deadline time.Time) {
+	timer := time.AfterFunc(time.Until(deadline), func() { resp.Body.Close() })
+	defer timer.Stop()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxDrainBytes))
+	resp.Body.Close()
+}
+
+// cancelOnClose releases the context of a retry attempt once its response body is closed, so the
+// deadline does not cut a successfully returned body short but the context is never leaked.
+type cancelOnClose struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnClose) Close() error {
+	err := c.ReadCloser.Close()
+	c.cancel()
+	return err
 }
 
 // backoff returns the wait before the retry that follows the given attempt.
@@ -110,20 +162,20 @@ func retryable(req *http.Request, status int) bool {
 	return false
 }
 
-// rewindBody resets req.Body for another attempt, reporting false when it cannot be replayed.
-func rewindBody(req *http.Request) bool {
+// replayBody returns a fresh copy of req's body for another attempt, reporting false when the
+// body cannot be replayed.
+func replayBody(req *http.Request) (io.ReadCloser, bool) {
 	if req.Body == nil || req.Body == http.NoBody {
-		return true
+		return req.Body, true
 	}
 	if req.GetBody == nil {
-		return false
+		return nil, false
 	}
 	body, err := req.GetBody()
 	if err != nil {
-		return false
+		return nil, false
 	}
-	req.Body = body
-	return true
+	return body, true
 }
 
 // retryAfter parses a Retry-After header, either delay-seconds or an HTTP date.
