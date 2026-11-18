@@ -209,7 +209,10 @@ func topologyCallsUntilDone(t *testing.T, maxRetries *int64) (int, error) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
 	}
-	client := resp.ResourceData.(*camunda.ClientWithResponses)
+	client, ok := resp.ResourceData.(*camunda.ClientWithResponses)
+	if !ok {
+		t.Fatalf("ResourceData is %T, want *ClientWithResponses", resp.ResourceData)
+	}
 	_, err := client.GetTopologyWithResponse(context.Background())
 	return calls, err
 }
