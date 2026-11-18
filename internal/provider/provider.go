@@ -53,6 +53,7 @@ type CamundaClusterProviderModel struct {
 	URL       types.String                          `tfsdk:"url"`
 
 	ConsistencyTimeout types.String `tfsdk:"consistency_timeout"`
+	MaxRetries         types.Int64  `tfsdk:"max_retries"`
 }
 
 func (p *CamundaClusterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -106,6 +107,12 @@ func (p *CamundaClusterProvider) Schema(ctx context.Context, req provider.Schema
 				Optional:   true,
 				Validators: []validator.String{consistencyTimeoutValidator{}},
 			},
+			"max_retries": schema.Int64Attribute{
+				MarkdownDescription: "How many times a request is retried after the cluster or a proxy in front of it answers with a 5xx status, with exponential backoff and jitter, honoring a `Retry-After` header. " +
+					"`GET`, `PUT` and `DELETE` requests are retried on any 5xx status, `POST` requests only on 502, 503 and 504. " +
+					"Set to `0` to disable retries. Must be between 0 and 10. Defaults to `3`.",
+				Optional: true,
+			},
 			"url": schema.StringAttribute{
 				MarkdownDescription: "The URL of the Camunda cluster API.",
 				Required:            true,
@@ -138,8 +145,30 @@ func (p *CamundaClusterProvider) Configure(ctx context.Context, req provider.Con
 		return
 	}
 
+	if data.MaxRetries.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("max_retries"),
+			"Unknown max_retries",
+			"The provider cannot be configured with a max_retries that is not known until apply.",
+		)
+		return
+	}
+
+	maxRetries := int64(defaultMaxRetries)
+	if !data.MaxRetries.IsNull() {
+		maxRetries = data.MaxRetries.ValueInt64()
+	}
+	if maxRetries < 0 || maxRetries > maxMaxRetries {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("max_retries"),
+			"Invalid max_retries",
+			fmt.Sprintf("%d is out of range, it must be between 0 and %d", maxRetries, maxMaxRetries),
+		)
+		return
+	}
+
 	opts := []camunda.ClientOption{
-		camunda.WithHTTPClient(newLoggingHTTPClient(&http.Client{})),
+		camunda.WithHTTPClient(newRetryingHTTPClient(newLoggingHTTPClient(&http.Client{}), int(maxRetries))),
 	}
 
 	if data.BasicAuth != nil {
