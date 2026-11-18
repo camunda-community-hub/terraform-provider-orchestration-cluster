@@ -109,7 +109,7 @@ func (p *CamundaClusterProvider) Schema(ctx context.Context, req provider.Schema
 			},
 			"max_retries": schema.Int64Attribute{
 				MarkdownDescription: "How many times a request is retried after the cluster or a proxy in front of it answers with a 5xx status, with exponential backoff and jitter, honoring a `Retry-After` header. " +
-					"`GET`, `PUT` and `DELETE` requests are retried on any 5xx status, `POST` requests only on 502, 503 and 504. " +
+					"`GET`, `PUT` and `DELETE` requests are retried on any 5xx status, `POST` requests only on 503, except the read-only `/search` endpoints, which are retried on any 5xx. " +
 					"Set to `0` to disable retries. Must be between 0 and 10. Defaults to `3`.",
 				Optional: true,
 			},

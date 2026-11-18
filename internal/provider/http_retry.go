@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -35,8 +36,9 @@ const (
 // exponential backoff and jitter. A server supplied Retry-After is honored. Once the retries are
 // exhausted it returns an error naming the last status code and the number of attempts.
 //
-// Idempotent methods (GET, HEAD, PUT, DELETE) are retried on any 5xx. POST is retried only on
-// 502, 503 and 504, which a gateway returns without the request having reached the API.
+// Idempotent methods (GET, HEAD, PUT, DELETE) are retried on any 5xx, and so are the read-only
+// POST /search endpoints. Any other POST is retried only on 503: 502 and 504 can be returned after
+// the API committed the operation, and the API has no idempotency key to make a replay safe.
 type retryingHTTPClient struct {
 	inner      camunda.HttpRequestDoer
 	maxRetries int
@@ -59,7 +61,7 @@ func (c *retryingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 	for attempt := 1; ; attempt++ {
 		resp, err := c.inner.Do(req)
-		if err != nil || !retryableStatus(req.Method, resp.StatusCode) {
+		if err != nil || !retryable(req, resp.StatusCode) {
 			return resp, err
 		}
 
@@ -94,16 +96,16 @@ func (c *retryingHTTPClient) backoff(attempt int, resp *http.Response) time.Dura
 	return c.jitter(min(d, retryMaxDelay))
 }
 
-// retryableStatus reports whether a response with status to a request with method is safe to repeat.
-func retryableStatus(method string, status int) bool {
+// retryable reports whether a response with status to req is safe to repeat.
+func retryable(req *http.Request, status int) bool {
 	if status < 500 || status > 599 {
 		return false
 	}
-	switch method {
+	switch req.Method {
 	case http.MethodGet, http.MethodHead, http.MethodPut, http.MethodDelete:
 		return true
 	case http.MethodPost:
-		return status == http.StatusBadGateway || status == http.StatusServiceUnavailable || status == http.StatusGatewayTimeout
+		return status == http.StatusServiceUnavailable || strings.HasSuffix(strings.TrimRight(req.URL.Path, "/"), "/search")
 	}
 	return false
 }

@@ -49,7 +49,7 @@ provider "orchestration" {
 
 - `basic_auth` (Attributes) (see [below for nested schema](#nestedatt--basic_auth))
 - `consistency_timeout` (String) How long resources and data sources of this provider instance wait for the cluster's eventually consistent read side to reflect a change, as a Go duration string such as `30s` or `2m`. Raise it for slow clusters; lower it to get faster feedback when a data source looks up something that does not exist. Must be between 5s and 10m. Defaults to `30s`.
-- `max_retries` (Number) How many times a request is retried after the cluster or a proxy in front of it answers with a 5xx status, with exponential backoff and jitter, honoring a `Retry-After` header. `GET`, `PUT` and `DELETE` requests are retried on any 5xx status, `POST` requests only on 502, 503 and 504. Set to `0` to disable retries. Must be between 0 and 10. Defaults to `3`.
+- `max_retries` (Number) How many times a request is retried after the cluster or a proxy in front of it answers with a 5xx status, with exponential backoff and jitter, honoring a `Retry-After` header. `GET`, `PUT` and `DELETE` requests are retried on any 5xx status, `POST` requests only on 503, except the read-only `/search` endpoints, which are retried on any 5xx. Set to `0` to disable retries. Must be between 0 and 10. Defaults to `3`.
 - `oidc` (Attributes) (see [below for nested schema](#nestedatt--oidc))
 
 <a id="nestedatt--basic_auth"></a>

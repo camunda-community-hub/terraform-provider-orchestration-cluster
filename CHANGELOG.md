@@ -2,7 +2,7 @@
 
 ENHANCEMENTS:
 
-* The provider now retries a request that gets a 5xx response, with exponential backoff and jitter, honoring `Retry-After`, instead of failing the operation on the first transient error. `GET`, `PUT` and `DELETE` are retried on any 5xx, `POST` only on 502, 503 and 504. After the retries are exhausted the error names the status code and the number of attempts. The new `max_retries` provider attribute sets the number of retries (0 to 10, default 3; `0` disables retrying).
+* The provider now retries a request that gets a 5xx response, with exponential backoff and jitter, honoring `Retry-After`, instead of failing the operation on the first transient error. `GET`, `PUT` and `DELETE` are retried on any 5xx, `POST` only on 503 (and any 5xx for the read-only `/search` endpoints). After the retries are exhausted the error names the status code and the number of attempts. The new `max_retries` provider attribute sets the number of retries (0 to 10, default 3; `0` disables retrying).
 
 ## 0.3.3 (November 3, 2026)
 

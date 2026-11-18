@@ -85,23 +85,34 @@ func TestRetryingHTTPClient_ExhaustedNamesStatusAndAttempts(t *testing.T) {
 	}
 }
 
-func TestRetryingHTTPClient_PostOnlyRetriedOnGatewayErrors(t *testing.T) {
+func TestRetryingHTTPClient_PostOnlyRetriedOn503(t *testing.T) {
 	var slept []time.Duration
 
-	srv, calls, bodies := flakyServer(t, 1, http.StatusInternalServerError, nil)
-	resp, err := doRequest(t, testRetryClient(3, &slept), http.MethodPost, srv.URL, "payload")
-	if err != nil || resp.StatusCode != http.StatusInternalServerError || calls.Load() != 1 {
-		t.Fatalf("POST 500: resp %v err %v calls %d, want the 500 returned after 1 call", resp, err, calls.Load())
+	for _, status := range []int{http.StatusInternalServerError, http.StatusBadGateway, http.StatusGatewayTimeout} {
+		srv, calls, _ := flakyServer(t, 1, status, nil)
+		resp, err := doRequest(t, testRetryClient(3, &slept), http.MethodPost, srv.URL, "payload")
+		if err != nil || resp.StatusCode != status || calls.Load() != 1 {
+			t.Fatalf("POST %d: resp %v err %v calls %d, want the response returned after 1 call", status, resp, err, calls.Load())
+		}
 	}
-	_ = bodies
 
-	srv, calls, bodies = flakyServer(t, 1, http.StatusServiceUnavailable, nil)
-	resp, err = doRequest(t, testRetryClient(3, &slept), http.MethodPost, srv.URL, "payload")
+	srv, calls, bodies := flakyServer(t, 1, http.StatusServiceUnavailable, nil)
+	resp, err := doRequest(t, testRetryClient(3, &slept), http.MethodPost, srv.URL, "payload")
 	if err != nil || resp.StatusCode != http.StatusOK || calls.Load() != 2 {
 		t.Fatalf("POST 503: resp %v err %v calls %d, want 200 after 2 calls", resp, err, calls.Load())
 	}
 	if len(*bodies) != 2 || (*bodies)[0] != "payload" || (*bodies)[1] != "payload" {
 		t.Fatalf("bodies %q, want the body replayed on retry", *bodies)
+	}
+}
+
+func TestRetryingHTTPClient_SearchPostRetriedOnAny5xx(t *testing.T) {
+	srv, calls, _ := flakyServer(t, 1, http.StatusGatewayTimeout, nil)
+	var slept []time.Duration
+
+	resp, err := doRequest(t, testRetryClient(3, &slept), http.MethodPost, srv.URL+"/v2/users/search", "{}")
+	if err != nil || resp.StatusCode != http.StatusOK || calls.Load() != 2 {
+		t.Fatalf("resp %v err %v calls %d, want 200 after 2 calls", resp, err, calls.Load())
 	}
 }
 
