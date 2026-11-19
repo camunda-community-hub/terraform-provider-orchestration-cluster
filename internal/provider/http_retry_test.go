@@ -207,7 +207,18 @@ func TestRetryingHTTPClient_StalledRetryIsBoundedByDeadline(t *testing.T) {
 }
 
 func TestRetryingHTTPClient_SuccessBodyOutlivesDeadline(t *testing.T) {
-	srv, _, _ := flakyServer(t, 1, http.StatusServiceUnavailable, nil)
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.(http.Flusher).Flush()
+		time.Sleep(150 * time.Millisecond)
+		_, _ = w.Write([]byte("streamed"))
+	}))
+	t.Cleanup(srv.Close)
+
 	var slept []time.Duration
 	c := testRetryClient(3, &slept)
 	c.maxElapsed = 50 * time.Millisecond
@@ -217,9 +228,9 @@ func TestRetryingHTTPClient_SuccessBodyOutlivesDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(100 * time.Millisecond)
-	if _, err := io.ReadAll(resp.Body); err != nil {
-		t.Fatalf("reading the body after the deadline: %v", err)
+	defer resp.Body.Close()
+	got, err := io.ReadAll(resp.Body)
+	if err != nil || string(got) != "streamed" {
+		t.Fatalf("body %q err %v, want the body streamed past the retry deadline", got, err)
 	}
-	resp.Body.Close()
 }

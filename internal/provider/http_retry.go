@@ -68,6 +68,7 @@ func (c *retryingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 	cur := req
 	var cancel context.CancelFunc = func() {}
+	disarm := func() bool { return true }
 	for attempt := 1; ; attempt++ {
 		resp, err := c.inner.Do(cur)
 		if err != nil {
@@ -81,6 +82,7 @@ func (c *retryingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			deadline = time.Now().Add(c.maxElapsed)
 		}
 		if !retryable(req, resp.StatusCode) {
+			disarm()
 			resp.Body = &cancelOnClose{ReadCloser: resp.Body, cancel: cancel}
 			return resp, nil
 		}
@@ -107,11 +109,15 @@ func (c *retryingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			return nil, err
 		}
 
-		// Retries run under a context that expires at the shared deadline, so a stalled attempt
-		// cannot outlive it. The first attempt is not bounded this way: a slow success is not an
-		// error. The context is cancelled when the returned body is closed (see cancelOnClose).
+		// Retries run under a context that a timer cancels at the shared deadline, so a stalled
+		// attempt cannot outlive it. The timer is disarmed once a response is accepted, so the
+		// deadline never truncates its body; the context itself is released when that body is
+		// closed (see cancelOnClose). The first attempt is not bounded this way: a slow success
+		// is not an error.
 		var attemptCtx context.Context
-		attemptCtx, cancel = context.WithDeadline(ctx, deadline)
+		attemptCtx, cancel = context.WithCancel(ctx)
+		timer := time.AfterFunc(time.Until(deadline), cancel)
+		disarm = timer.Stop
 		cur = req.Clone(attemptCtx)
 		cur.Body = body
 	}
@@ -127,7 +133,7 @@ func drainBody(resp *http.Response, deadline time.Time) {
 }
 
 // cancelOnClose releases the context of a retry attempt once its response body is closed, so the
-// deadline does not cut a successfully returned body short but the context is never leaked.
+// context is never leaked.
 type cancelOnClose struct {
 	io.ReadCloser
 	cancel context.CancelFunc
