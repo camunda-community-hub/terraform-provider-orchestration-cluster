@@ -89,9 +89,11 @@ func (c *retryingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 		delay := c.backoff(attempt, resp)
 		body, replayable := replayBody(req)
+		drainBody(resp, deadline)
+		cancel()
+
+		// The budget is checked after the drain, which can itself use up part of it.
 		if attempt > c.maxRetries || time.Now().Add(delay).After(deadline) || !replayable {
-			drainBody(resp, deadline)
-			cancel()
 			return nil, fmt.Errorf("%s %s failed with status %d after %d attempt(s)", req.Method, redactURL(req.URL), resp.StatusCode, attempt)
 		}
 
@@ -102,8 +104,6 @@ func (c *retryingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			"attempt":     attempt,
 			"delay":       delay.String(),
 		})
-		drainBody(resp, deadline)
-		cancel()
 
 		if err := c.sleep(ctx, delay); err != nil {
 			return nil, err

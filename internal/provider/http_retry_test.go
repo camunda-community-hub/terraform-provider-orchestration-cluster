@@ -234,3 +234,25 @@ func TestRetryingHTTPClient_SuccessBodyOutlivesDeadline(t *testing.T) {
 		t.Fatalf("body %q err %v, want the body streamed past the retry deadline", got, err)
 	}
 }
+
+func TestRetryingHTTPClient_StalledDrainDoesNotLeaveRoomForBackoff(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	t.Cleanup(srv.Close)
+
+	var slept []time.Duration
+	c := testRetryClient(3, &slept)
+	c.maxElapsed = 300 * time.Millisecond
+	c.jitter = func(time.Duration) time.Duration { return 100 * time.Millisecond }
+
+	_, err := doRequest(t, c, http.MethodGet, srv.URL, "")
+	if err == nil || !strings.Contains(err.Error(), "status 503") {
+		t.Fatalf("err %v, want a 503 error", err)
+	}
+	if len(slept) != 0 {
+		t.Fatalf("waits %v, want none: the drain used up the budget", slept)
+	}
+}
