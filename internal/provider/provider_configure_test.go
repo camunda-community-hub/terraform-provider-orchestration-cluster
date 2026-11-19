@@ -172,3 +172,62 @@ func TestProviderConfigure_OIDCLoginFailure(t *testing.T) {
 		t.Error("no client must be provided when authentication fails")
 	}
 }
+
+func TestProviderConfigure_MaxRetriesOutOfRange(t *testing.T) {
+	for _, n := range []int64{-1, maxMaxRetries + 1} {
+		resp := configureProvider(t, map[string]tftypes.Value{
+			"url":         tftypes.NewValue(tftypes.String, "http://localhost"),
+			"max_retries": tftypes.NewValue(tftypes.Number, n),
+		})
+		if !resp.Diagnostics.HasError() {
+			t.Errorf("max_retries = %d accepted, want an error", n)
+		}
+	}
+}
+
+// topologyCallsUntilDone configures the provider with the given max_retries (nil leaves it unset)
+// against an API that answers 503 once, and returns how many requests one call took and its error.
+func topologyCallsUntilDone(t *testing.T, maxRetries *int64) (int, error) {
+	t.Helper()
+	calls := 0
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer api.Close()
+
+	vals := map[string]tftypes.Value{"url": tftypes.NewValue(tftypes.String, api.URL)}
+	if maxRetries != nil {
+		vals["max_retries"] = tftypes.NewValue(tftypes.Number, *maxRetries)
+	}
+	resp := configureProvider(t, vals)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	client, ok := resp.ResourceData.(*camunda.ClientWithResponses)
+	if !ok {
+		t.Fatalf("ResourceData is %T, want *ClientWithResponses", resp.ResourceData)
+	}
+	_, err := client.GetTopologyWithResponse(context.Background())
+	return calls, err
+}
+
+func TestProviderConfigure_RetriesByDefault(t *testing.T) {
+	calls, err := topologyCallsUntilDone(t, nil)
+	if err != nil || calls != 2 {
+		t.Fatalf("calls %d err %v, want success after 2 calls", calls, err)
+	}
+}
+
+func TestProviderConfigure_ZeroMaxRetriesDisablesRetry(t *testing.T) {
+	zero := int64(0)
+	calls, err := topologyCallsUntilDone(t, &zero)
+	if err != nil || calls != 1 {
+		t.Fatalf("calls %d err %v, want the 503 passed through after 1 call", calls, err)
+	}
+}
