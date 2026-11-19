@@ -32,6 +32,17 @@ func flakyServer(t *testing.T, failures int, status int, header http.Header) (*h
 	return srv, &calls, &bodies
 }
 
+// flush sends the response headers written so far to the client.
+func flush(t *testing.T, w http.ResponseWriter) {
+	t.Helper()
+	f, ok := w.(http.Flusher)
+	if !ok {
+		t.Error("ResponseWriter is not an http.Flusher")
+		return
+	}
+	f.Flush()
+}
+
 func testRetryClient(maxRetries int, slept *[]time.Duration) *retryingHTTPClient {
 	return &retryingHTTPClient{
 		inner:      http.DefaultClient,
@@ -213,7 +224,7 @@ func TestRetryingHTTPClient_SuccessBodyOutlivesDeadline(t *testing.T) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-		w.(http.Flusher).Flush()
+		flush(t, w)
 		time.Sleep(150 * time.Millisecond)
 		_, _ = w.Write([]byte("streamed"))
 	}))
@@ -238,7 +249,7 @@ func TestRetryingHTTPClient_SuccessBodyOutlivesDeadline(t *testing.T) {
 func TestRetryingHTTPClient_StalledDrainDoesNotLeaveRoomForBackoff(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.(http.Flusher).Flush()
+		flush(t, w)
 		<-r.Context().Done()
 	}))
 	t.Cleanup(srv.Close)
