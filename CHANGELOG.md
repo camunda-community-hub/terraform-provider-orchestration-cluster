@@ -1,4 +1,4 @@
-## 0.4.0 (November 19, 2026)
+## 0.4.0 (November 21, 2026)
 
 ENHANCEMENTS:
 
